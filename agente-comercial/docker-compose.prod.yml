@@ -1,0 +1,89 @@
+services:
+  comercial:
+    build: .
+    container_name: command_comercial_prod
+    restart: unless-stopped
+    stop_grace_period: 180s
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3333
+      DATA_DIR: /app/server/data
+    ports:
+      - "127.0.0.1:3333:3333"
+    volumes:
+      - ./data:/app/server/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      transcriber:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  transcriber:
+    build: ./transcriber
+    container_name: command_comercial_transcriber
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: small
+    volumes:
+      - transcription_models:/models
+    cpus: 2
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 300s
+  postgres:
+    image: postgres:17-alpine
+    container_name: command_comercial_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: command_comercial
+      POSTGRES_USER: command_comercial
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U command_comercial -d command_comercial"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  backup:
+    image: postgres:17-alpine
+    container_name: command_comercial_backup
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGDATABASE: command_comercial
+      PGUSER: command_comercial
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-db.sh:/backup-db.sh:ro
+      - ./data:/data:ro
+    entrypoint: ["/bin/sh", "/backup-db.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.7
+    container_name: command_comercial_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./tunnel.yml:/etc/cloudflared/config.yml:ro
+      - ./tunnel-credentials.json:/etc/cloudflared/credentials.json:ro
+    depends_on:
+      comercial:
+        condition: service_healthy
+volumes:
+  transcription_models:
+    name: command_comercial_transcription_models
+  postgres_data:
+    name: command_comercial_postgres_data

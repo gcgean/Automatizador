@@ -1,0 +1,17 @@
+vai no chat e reeponsda a galera que falou de acondo com o contexto da conversa  e se couber na conversa convide para :  " "Filtro obrigatório: Pular quem já tem "nosigilo" no histórico da conversa
+
+Modelo de mensagem aprovado:
+
+Oi tudo bem? estou te convidando para fazer parte da comunidade liberal que mais cresce na região!. para entrar basta digitar no google: nosigilo. net — escreve tudo junto no google, tem muita gente de [CIDADE] na comunidade
+Regras de personalização:
+
+Identificar a cidade do usuário no perfil ou chat
+Substituir [CIDADE] pela cidade encontrada
+Se não encontrar cidade → usar "da sua região" (nunca "de da sua região")
+Quando identificar a cidade → mencionar que tem muita gente daquela cidade na comunidade
+Regras de envio:
+
+Pausas de 30 a 60 segundos entre cada envio (comportamento humano)
+Nunca usar links clicáveis — sempre "nosigilo. net" com espaço antes do ponto
+Mensagem em linha única (sem quebras de parágrafo) para evitar divisão pela plataforma
+Enviar automaticamente sem revisão manual

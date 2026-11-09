@@ -1,0 +1,63 @@
+const {_electron:electron}=require('playwright');
+const assert=require('node:assert/strict');const http=require('node:http');
+const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
+(async()=>{
+  let modelRequests=0,app,responseText='Boa noite! Tudo bem, e você?';
+  const fixture=http.createServer((req,res)=>{
+    const blocked=req.url.includes('blocked');res.setHeader('Content-Type','text/html; charset=utf-8');
+    res.end('<aside>Outro contato: nosigilo</aside><div class="page-container"><main><div class="msg-list"><div class="chat chat-start"><div class="chat-bubble">'+(blocked?'Já entrei no nosigilo.':'Boa noite, tudo bem?')+'</div></div></div></main><footer><form onsubmit="event.preventDefault();const value=document.querySelector(\'textarea\').value;const msg=document.createElement(\'div\');msg.className=\'chat chat-end\';const b=document.createElement(\'div\');b.className=\'chat-bubble\';b.textContent=value;msg.appendChild(b);document.querySelector(\'.msg-list\').appendChild(msg);document.querySelector(\'textarea\').value=\'\';document.body.dataset.sent=\'1\'"><textarea aria-label="Mensagem"></textarea><button>Enviar</button></form></footer></div>');
+  });
+  const api=http.createServer(async(req,res)=>{
+    let body='';for await(const chunk of req)body+=chunk;const request=JSON.parse(body);modelRequests++;
+    const context=request.messages.find(m=>m.content.startsWith('CONTEXTO ATUAL DO NAVEGADOR'));
+    const page=JSON.parse(context.content.slice(context.content.indexOf('\n')+1));
+    assert.equal(page.conversation.filter,undefined,'A IA não deve recalcular o filtro.');
+    assert.ok(request.format.oneOf.some(b=>b.properties.action.const==='send_message'));
+    const field=page.elements.find(e=>e.tag==='textarea'),button=page.elements.find(e=>e.label==='Enviar');
+    res.setHeader('Content-Type','application/json');res.end(JSON.stringify({message:{content:JSON.stringify({action:'send_message',arguments:{fieldId:field.id,buttonId:button.id,text:responseText}})},done:true}));
+  });
+  await new Promise(resolve=>fixture.listen(0,'127.0.0.1',resolve));await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
+  try{
+    const profile=fs.mkdtempSync(path.join(os.tmpdir(),'nexo-policy-e2e-'));
+    app=await electron.launch({args:[path.join(__dirname,'..')],env:{...process.env,NEXO_TEST_PROFILE:profile}});
+    const page=await app.firstWindow();page.setDefaultTimeout(15000);
+    await page.getByRole('heading',{name:'O que vamos fazer?'}).waitFor();
+    await page.evaluate(async baseURL=>{await window.nexo.config({provider:'ollama',model:'test',key:'',baseURL});window.__policyEvents=[];window.nexo.subscribe(e=>window.__policyEvents.push(e));},`http://127.0.0.1:${api.address().port}/v1`);
+    await page.evaluate(url=>window.nexo.navigate(url),`http://127.0.0.1:${fixture.address().port}/threads/test`);
+    await page.evaluate(()=>{window.__policyRun=window.nexo.run({task:'Envie uma resposta contextual. Filtro: Pular quem já tem "nosigilo" no histórico.',mode:'deepseek',review:true});});
+    await page.getByRole('button',{name:'Permitir',exact:true}).waitFor();await page.getByRole('button',{name:'Permitir',exact:true}).click();
+    await page.waitForFunction(()=>window.__policyEvents.some(e=>e.type==='idle'));
+    assert.equal(await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('document.body.dataset.sent || "0"')),'1');
+    assert.equal(modelRequests,1);
+    await page.evaluate(url=>window.nexo.navigate(url),`http://127.0.0.1:${fixture.address().port}/threads/test?blocked=1`);
+    await page.evaluate(()=>{window.__policyEvents=[];window.__policyRun=window.nexo.run({task:'Continue',mode:'deepseek',review:false});});
+    await page.waitForFunction(()=>window.__policyEvents.some(e=>e.type==='idle'));
+    assert.equal(modelRequests,1,'Conversa excluída não deve consultar o modelo.');
+    assert.equal(await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('document.body.dataset.sent || "0"')),'0');
+    assert.ok(await page.evaluate(()=>window.__policyEvents.some(e=>e.type==='message' && /Conversa atual pulada/.test(e.text))));
+    await page.evaluate(url=>window.nexo.navigate(url),`http://127.0.0.1:${fixture.address().port}/threads/test?race=1`);
+    await page.evaluate(()=>{window.__policyEvents=[];window.__policyRun=window.nexo.run({task:'Continue',mode:'deepseek',review:true});});
+    await page.getByRole('button',{name:'Permitir',exact:true}).waitFor();
+    await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('const item=document.createElement("div");item.className="chat chat-start";const bubble=document.createElement("div");bubble.className="chat-bubble";bubble.textContent="Nova mensagem com nosigilo";item.appendChild(bubble);document.querySelector(".msg-list").appendChild(item);'));
+    await page.getByRole('button',{name:'Permitir',exact:true}).click();
+    await page.waitForFunction(()=>window.__policyEvents.some(e=>e.type==='idle'));
+    assert.equal(modelRequests,2);
+    assert.equal(await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('document.body.dataset.sent || "0"')),'0');
+    assert.ok(await page.evaluate(()=>window.__policyEvents.some(e=>e.type==='message' && /Conversa pulada pelo filtro/.test(e.text))));
+    const guidance='Envie respostas contextuais normalmente. Filtro do convite: não repetir convite quando o histórico contiver "nosigilo". Respostas normais continuam permitidas.';
+    await page.evaluate(async text=>{const state=await window.nexo.getChatState();window.__policyEvents=[];await window.nexo.saveGuidance({id:state.chat.id,text});},guidance);
+    assert.equal(modelRequests,2,'Salvar orientações não deve chamar a IA.');
+    const saved=await page.evaluate(()=>window.nexo.getChatState());assert.equal(saved.chat.draft,guidance);assert.equal(saved.chat.conversation.at(-1).content,guidance);
+    await page.evaluate(url=>window.nexo.navigate(url),`http://127.0.0.1:${fixture.address().port}/threads/test?blocked=1`);
+    await page.evaluate(()=>{window.__policyEvents=[];window.__policyRun=window.nexo.run({task:'Continue',mode:'deepseek',review:false});});
+    await page.waitForFunction(()=>window.__policyEvents.some(e=>e.type==='idle'));
+    assert.equal(modelRequests,3);assert.equal(await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('document.body.dataset.sent || "0"')),'1');
+    responseText='Estou te convidando para fazer parte da comunidade! Pesquise nosigilo. net no Google.';
+    await page.evaluate(url=>window.nexo.navigate(url),`http://127.0.0.1:${fixture.address().port}/threads/test?blocked=1`);
+    await page.evaluate(()=>{window.__policyEvents=[];window.__policyRun=window.nexo.run({task:'Continue',mode:'deepseek',review:false});});
+    await page.waitForFunction(()=>window.__policyEvents.some(e=>e.type==='idle'));
+    assert.equal(modelRequests,4);assert.equal(await app.evaluate(async({webContents})=>webContents.getAllWebContents().find(w=>w.getURL().includes('/threads/test')).executeJavaScript('document.body.dataset.sent || "0"')),'0');
+    assert.ok(await page.evaluate(()=>window.__policyEvents.some(e=>e.type==='message' && /Convite repetido bloqueado/.test(e.text))));
+    console.log('PASS: filtro antigo preservado; orientação salva sem execução; modo convite permite resposta normal e bloqueia convite repetido, com histórico e revisão preservados.');
+  }finally{if(app)await app.close();for(const server of [api,fixture]){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}}
+})().catch(error=>{console.error(error);process.exitCode=1;});

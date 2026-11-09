@@ -1,0 +1,6 @@
+tunnel: 2a5b8d56-0c85-4ae6-afb3-5c54f4186fd3
+credentials-file: /etc/cloudflared/credentials.json
+ingress:
+  - hostname: comercial.gestorfacil.ia.br
+    service: http://comercial:3333
+  - service: http_status:404

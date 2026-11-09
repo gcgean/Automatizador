@@ -1,0 +1,22 @@
+{
+  "name": "nexo-browser-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agente local com navegador integrado e DeepSeek",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "test": "node --test tests/*.test.cjs",
+    "test:e2e": "npm run build && node tests/e2e.cjs && node tests/persistence.cjs && node tests/chat-persistence.cjs && node tests/send-message-e2e.cjs && node tests/chat-policy-e2e.cjs && node tests/inbox-e2e.cjs",
+    "test:ollama": "npm run build && node tests/ollama.cjs",
+    "test:ollama:actions": "electron tests/ollama-decision.cjs --full",
+    "test:ollama:search": "electron tests/ollama-search-recovery.cjs",
+    "test:ollama:filter": "node tests/ollama-filter.cjs",
+    "test:browser": "electron tests/browser-actions.cjs && electron tests/send-message-browser.cjs && electron tests/chat-view-browser.cjs && electron tests/chat-filter-browser.cjs && electron tests/inbox-browser.cjs"
+  },
+  "dependencies": { "react": "^19.2.0", "react-dom": "^19.2.0", "lucide-react": "^0.468.0" },
+  "devDependencies": { "vite": "^7.2.0", "@vitejs/plugin-react": "^5.1.0", "electron": "^42.0.0", "playwright": "^1.58.0" }
+}
