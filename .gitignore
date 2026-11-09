@@ -29,3 +29,6 @@ ACESSO-ADMIN.html
 # Arquivos do sistema
 .DS_Store
 Thumbs.db
+
+# Documento local de transferencia com PIN
+/NUMERO-CILOS.md

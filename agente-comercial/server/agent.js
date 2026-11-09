@@ -179,7 +179,7 @@ export class SalesAgent {
     await this.store.saveConversation(conv);
 
     if (!reply) {
-      reply = FALLBACK_TEXT;
+      reply = this.store.scoped&&this.store.connectionId!=='default'?'Obrigado pela mensagem! A equipe comercial vai continuar o seu atendimento em breve.':FALLBACK_TEXT;
       await this.store.updateLead(from, {status: 'encaminhado', motivoEncaminhamento: 'falha_ia'});
       await this.notifySeller(from, `Atenção: o assistente não conseguiu responder ${from}. Assuma a conversa.`);
     }

@@ -9,6 +9,7 @@ Aplicação de atendimento comercial por WhatsApp Cloud API, com painel web, Dee
 - Execução de produção: `docker-compose.prod.yml`.
 - Documentação técnica: `server/README.md`.
 - Ligações WhatsApp atendidas pela equipe: [configuração e uso](docs/ligacoes-whatsapp.md).
+- Segundo número Comercial Cilos: [conexão e contexto separados](docs/conexao-cilos.md).
 - Histórico e instalação real: `AGENTE-COMERCIAL.md`.
 
 Os arquivos JavaScript soltos da raiz recebidos na transferência são cópias anteriores; o Docker e os scripts do package.json executam a pasta `server/`.

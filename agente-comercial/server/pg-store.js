@@ -8,6 +8,7 @@ export class PgStore {
  async init({workerLock=false}={}){
   await this.pool.query(await fs.readFile(new URL('./schema.sql',import.meta.url),'utf8'));
   const client=await this.pool.connect();try{await client.query('BEGIN');await client.query('SELECT pg_advisory_xact_lock(734915806)');if(!(await client.query("SELECT 1 FROM schema_migrations WHERE version='multi-connections-v1'")).rowCount)await client.query(await fs.readFile(new URL('./multi-schema.sql',import.meta.url),'utf8'));await client.query('COMMIT');}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
+  await this.pool.query("ALTER TABLE whatsapp_connections ADD COLUMN IF NOT EXISTS webhook_mode text NOT NULL DEFAULT 'app' CHECK (webhook_mode IN ('app','waba_override'))");
   await this.pool.query(await fs.readFile(new URL('./users-schema.sql',import.meta.url),'utf8'));
   await this.pool.query(await fs.readFile(new URL('./access-schema.sql',import.meta.url),'utf8'));
   await this.pool.query(await fs.readFile(new URL('./agenda-schema.sql',import.meta.url),'utf8'));
