@@ -11,6 +11,7 @@ import {UserAdministration} from './users.js';
 import {ConnectionRegistry} from './connections.js';
 import {LearningService} from './learning.js';
 import {evaluateLead} from './qualification.js';
+import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
 import {CrmService} from './crm.js';
@@ -25,7 +26,7 @@ import {DurableInbox} from './inbox.js';
 
 const MAX_BODY = 1024 * 1024;
 
-export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, log = console}) {
+export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   return async function handler(req, res) {
     let store=rootStore,inbox=baseInbox;
@@ -109,6 +110,20 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const connectionId=url.searchParams.get('connection')||'default';
         if(!administrator&&!currentUser.connections.includes(connectionId))return send(res,403,'Você não tem acesso a esta conexão.');
         const runtime=await registry.runtime(connectionId);store=runtime.store;inbox=runtime.inbox;
+        if(url.pathname.startsWith('/calls')){
+          if(!auth||!calling||!currentUser)return send(res,503,'Ligações exigem uma sessão autenticada e PostgreSQL.');
+          if(url.pathname==='/calls/settings'&&req.method==='GET')return send(res,200,await calling.settings(connectionId));
+          if(url.pathname==='/calls/settings'&&req.method==='POST')return send(res,200,await calling.configure(connectionId,JSON.parse((await readBody(req)).toString()).enabled));
+          if(url.pathname==='/calls'&&req.method==='GET')return send(res,200,await calling.list(connectionId,currentUser,url.searchParams.get('clientId')));
+          if(url.pathname==='/calls/permission'&&req.method==='GET')return send(res,200,await calling.permission(connectionId,url.searchParams.get('phone')));
+          const body=req.method==='POST'?JSON.parse((await readBody(req)).toString()):{};
+          if(url.pathname==='/calls/permission'&&req.method==='POST')return send(res,200,await calling.requestPermission(connectionId,body.phone,currentUser));
+          if(url.pathname==='/calls/start'&&req.method==='POST')return send(res,200,await calling.start(connectionId,body,currentUser));
+          const callRoute=url.pathname.match(/^\/calls\/([a-f0-9-]{36})\/(claim|accept|reject|terminate|heartbeat)$/i);
+          if(callRoute&&req.method==='POST')return send(res,200,await calling.action(connectionId,callRoute[1],callRoute[2],body,currentUser));
+          return send(res,404,'not found');
+        }
+
         if(url.pathname==='/attendants'&&req.method==='GET'){
           const candidates=(await rootStore.pool.query("SELECT id FROM users WHERE active AND password_hash IS NOT NULL ORDER BY name,email")).rows,allowed=[];
           for(const c of candidates){const person=await auth.identity(c.id);if(person&&(person.role==='admin'||person.connections.includes(connectionId))&&can(person,'messages.send'))allowed.push({id:person.id,name:person.name||person.email});}
@@ -351,7 +366,10 @@ async function main() {
   if(cadence)await cadence.init();
   const media=config.databaseUrl?new MediaService(store,config):null;
   if(media)await media.init();
-  const registry=config.databaseUrl?new ConnectionRegistry(store,config,{agenda,crm,cadence,media}):null;
+  const calling=config.databaseUrl?new CallingService(store,config):null;
+  if(calling)await calling.init();
+  const registry=config.databaseUrl?new ConnectionRegistry(store,config,{agenda,crm,cadence,media,calling}):null;
+  calling?.bind(registry);
   cadence?.bind(registry);media?.bind(registry);
   if(registry)await registry.init();
   const simulation=registry?new SimulationService(store,config):null;
@@ -365,7 +383,8 @@ async function main() {
   if(cadence&&!config.panelOnly)cadence.start();
   const learningTimer=learning?setInterval(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),3600000):null;
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
-  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media})).listen(config.port, config.host, () => {
+  const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
+  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling})).listen(config.port, config.host, () => {
     console.log(`Agente comercial ouvindo na porta ${config.port}. Webhook: /webhook`);
     store.getSettings().then(s => {
       const name = s.aiProvider || config.aiProvider;
@@ -375,7 +394,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{if(registry)await registry.drain();else await inbox.drain();await simulation?.close();await crm?.close();await cadence?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{if(registry)await registry.drain();else await inbox.drain();await simulation?.close();await crm?.close();await cadence?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }

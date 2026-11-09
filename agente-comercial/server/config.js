@@ -31,6 +31,7 @@ export function loadConfig(env = process.env) {
     agendaApiKey: get('COMMAND_AGENDA_API_KEY'),
     crmToken: get('CILOS_CRM_TOKEN'),
     transcriberUrl: get('TRANSCRIBER_URL'),
+    callIceServers: JSON.parse(get('CALL_ICE_SERVERS', '[]')),
     graphVersion: get('WHATSAPP_GRAPH_VERSION', 'v23.0'),
     panelToken: get('PAINEL_TOKEN'),
     databaseUrl: get('DATABASE_URL'),

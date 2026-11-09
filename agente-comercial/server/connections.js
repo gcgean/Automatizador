@@ -7,7 +7,7 @@ import {encryptSecret,decryptSecret} from './secrets.js';
 import {PROVIDERS,providerSettings} from './llm.js';
 
 export class ConnectionRegistry{
- constructor(store,config,{fetchImpl=fetch,agenda,crm,cadence,media}={}){this.store=store;this.config=config;this.fetch=fetchImpl;this.agenda=agenda;this.crm=crm;this.cadence=cadence;this.media=media;this.runtimes=new Map();this.creating=new Map();}
+ constructor(store,config,{fetchImpl=fetch,agenda,crm,cadence,media,calling}={}){this.store=store;this.config=config;this.fetch=fetchImpl;this.agenda=agenda;this.crm=crm;this.cadence=cadence;this.media=media;this.calling=calling;this.runtimes=new Map();this.creating=new Map();}
  async init(){
   const c=await this.store.getConnection('default');
   if(!c.context_id){const settings=await this.store.getSettings();const body=await fs.readFile(this.config.scriptFile,'utf8')+(settings.context?'\n\n'+settings.context:'');const context=await this.store.saveContext('default','Comercial Command',body);await this.store.pool.query('UPDATE whatsapp_connections SET phone_number_id=$1,display_phone=$2,app_id=$3,waba_id=$4,context_id=$5,provider=$6 WHERE id=\'default\'',[this.config.phoneNumberId,'+55 85 93618-1071',this.config.appId,this.config.wabaId,context.id,settings.aiProvider||this.config.aiProvider]);}
@@ -31,7 +31,7 @@ export class ConnectionRegistry{
   const matches=(await this.list()).filter(c=>(payload.entry||[]).some(e=>(e.changes||[]).some(change=>change.value?.metadata?.phone_number_id===c.phoneNumberId)));
   if(!matches.length){for(const c of await this.list()){if(verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))return;}throw Object.assign(new Error('invalid signature'),{status:401});}
   for(const c of matches){if(!verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))throw Object.assign(new Error('invalid signature'),{status:401});}
-  for(const c of matches){const runtime=await this.runtime(c.id);for(const status of extractStatuses(payload,c.phoneNumberId))await runtime.store.recordDelivery(status);for(const message of extractMessages(payload,c.phoneNumberId))await runtime.inbox.accept({...message,connectionId:c.id});}
+  for(const c of matches){const runtime=await this.runtime(c.id);if(this.calling)await this.calling.receive(c.id,payload,c.phoneNumberId);for(const status of extractStatuses(payload,c.phoneNumberId))await runtime.store.recordDelivery(status);for(const message of extractMessages(payload,c.phoneNumberId))await runtime.inbox.accept({...message,connectionId:c.id});}
  }
  async save(body){
   const id=body.id||crypto.randomUUID();
@@ -56,7 +56,7 @@ export class ConnectionRegistry{
   await call(c.appId+'?fields=id',c.appId+'|'+c.appSecret);
   const subscriptions=await call(c.appId+'/subscriptions',c.appId+'|'+c.appSecret);
   if(subscriptions.data?.some(s=>s.object==='whatsapp_business_account'&&s.active&&s.callback_url!==this.config.publicUrl+'/webhook'))throw Object.assign(new Error('Este aplicativo já tem outro webhook ativo. Use um aplicativo dedicado para não interromper a integração existente.'),{status:409});
-  await call(c.appId+'/subscriptions',c.appId+'|'+c.appSecret,{object:'whatsapp_business_account',callback_url:this.config.publicUrl+'/webhook',verify_token:c.verifyToken,fields:'messages',include_values:'true'});
+  await call(c.appId+'/subscriptions',c.appId+'|'+c.appSecret,{object:'whatsapp_business_account',callback_url:this.config.publicUrl+'/webhook',verify_token:c.verifyToken,fields:[...new Set(['messages',...subscriptions.data.filter(s=>s.object==='whatsapp_business_account').flatMap(s=>s.fields?.map(f=>f.name)||[])])].join(','),include_values:'true'});
   await call(c.wabaId+'/subscribed_apps',c.accessToken,{});
   await this.store.pool.query('UPDATE whatsapp_connections SET enabled=true,display_phone=$2,updated_at=now() WHERE id=$1',[id,phone.display_phone_number||'']);return (await this.list()).find(c=>c.id===id);
  }
