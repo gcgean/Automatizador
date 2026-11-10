@@ -3,6 +3,7 @@ import {requestsOptOut} from './consent.js';
 import {createProvider, PROVIDERS} from './llm.js';
 import {CRM_TOOL} from './crm.js';
 import {AGENDA_TOOL} from './agenda.js';
+import {TagService} from './tags.js';
 
 const nullableString = description => ({type: ['string', 'null'], description});
 
@@ -28,7 +29,7 @@ export const TOOLS = [
         email: nullableString('E-mail informado pelo cliente.'),
         temperatura: {type: ['string', 'null'], enum: ['quente', 'morno', 'frio', null], description: 'Classificação do lead.'},
         observacoes: nullableString('Qualquer outra informação útil para o vendedor.'),
-        produtos_interesse: nullableString('Produto(s) ou solução(ões) que o cliente demonstrou interesse em conhecer, usando os nomes do contexto.'),
+        produtos_interesse: nullableString('Somente os produtos ou soluções que o cliente demonstrou interesse em conhecer, usando os nomes do contexto. Não inclua produtos recusados, sugestões suas ou a lista de tudo que a empresa vende. Esse campo também gera etiquetas em leads mornos ou quentes.'),
       },
     },
   },
@@ -94,7 +95,7 @@ export class SalesAgent {
 
   async syncCrm(phone){if(this.crm)try{await this.crm.enqueue(this.store.connectionId,phone);}catch{this.log.error('[crm]','Falha ao registrar sincronização pendente.');}}
 
-  async afterReply(phone,text,inboundId){await this.syncCrm(phone);if(this.cadence)try{await this.cadence.arm(this.store.connectionId,phone,text,inboundId);}catch{this.log.error('[cadência]','Falha ao programar acompanhamento.');}}
+  async afterReply(phone,text,inboundId){if(this.store.scoped&&this.store.pool)try{await new TagService(this.store).autoInterest(phone);}catch{this.log.error('[etiquetas]','Falha ao aplicar etiquetas de interesse.');}await this.syncCrm(phone);if(this.cadence)try{await this.cadence.arm(this.store.connectionId,phone,text,inboundId);}catch{this.log.error('[cadência]','Falha ao programar acompanhamento.');}}
 
   async handle({id, from, name, text, manual = false, followup, media, attachmentId, type, operator}) {
     if(followup){if(!this.cadence)throw new Error('Cadência indisponível.');return this.cadence.deliver(this,from,followup.attemptId);}

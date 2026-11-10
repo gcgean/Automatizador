@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {interestTags,tagNameKey} from './interest-tags.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 export const TAG_COLORS=['green','blue','purple','pink','yellow','orange','red','gray'];
 export class TagService{
@@ -16,9 +17,29 @@ export class TagService{
   return this.store.transaction(async tx=>{
    const lead=(await tx.pool.query('SELECT 1 FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[this.connection,phone])).rowCount;if(!lead)throw fail('Contato não encontrado.',404);
    if((await tx.pool.query('SELECT id FROM contact_tags WHERE connection_id=$1 AND id=ANY($2::uuid[])',[this.connection,ids])).rowCount!==ids.length)throw fail('Escolha etiquetas desta conexão.');
+   await tx.pool.query("INSERT INTO lead_tag_suppressions(connection_id,phone,tag_id) SELECT connection_id,phone,tag_id FROM lead_tags WHERE connection_id=$1 AND phone=$2 AND source='ai_interest' AND NOT(tag_id=ANY($3::uuid[])) ON CONFLICT DO NOTHING",[this.connection,phone,ids]);
+   await tx.pool.query('DELETE FROM lead_tag_suppressions WHERE connection_id=$1 AND phone=$2 AND tag_id=ANY($3::uuid[])',[this.connection,phone,ids]);
    await tx.pool.query('DELETE FROM lead_tags WHERE connection_id=$1 AND phone=$2',[this.connection,phone]);
    if(ids.length)await tx.pool.query('INSERT INTO lead_tags(connection_id,phone,tag_id) SELECT $1,$2,unnest($3::uuid[])',[this.connection,phone,ids]);
    return {ok:true};
+  });
+ }
+ async autoInterest(phone){
+  return this.store.transaction(async tx=>{
+   await tx.pool.query('SELECT pg_advisory_xact_lock(hashtext($1))',['tags:'+this.connection]);
+   const lead=(await tx.pool.query('SELECT data FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[this.connection,phone])).rows[0]?.data;
+   if(!lead||!['morno','quente'].includes(lead.temperatura)||lead.status==='encaminhado'||lead.assignedUserId||lead.optedOut||['ganho','perdido'].includes(lead.resultado))return;
+   const desired=interestTags(lead.produtos_interesse);if(!desired.length)return;
+   const tags=(await tx.pool.query('SELECT id,name FROM contact_tags WHERE connection_id=$1 ORDER BY name',[this.connection])).rows,ids=[];
+   for(const interest of desired){
+    const keys=new Set([interest.name,...interest.aliases].map(tagNameKey));let tag=tags.find(t=>keys.has(tagNameKey(t.name)));
+    if(!tag){if(tags.length>=100)continue;tag=(await tx.pool.query("INSERT INTO contact_tags(id,connection_id,name,color) VALUES($1,$2,$3,'blue') RETURNING id,name",[crypto.randomUUID(),this.connection,interest.name])).rows[0];tags.push(tag);}ids.push(tag.id);
+   }
+   if(!ids.length)return;
+   const removed=await tx.pool.query("DELETE FROM lead_tags WHERE connection_id=$1 AND phone=$2 AND source='ai_interest' AND NOT(tag_id=ANY($3::uuid[])) RETURNING tag_id",[this.connection,phone,ids]);
+   let count=Number((await tx.pool.query('SELECT count(*) FROM lead_tags WHERE connection_id=$1 AND phone=$2',[this.connection,phone])).rows[0].count),added=[];
+   for(const id of ids){if(count>=10)break;const result=await tx.pool.query("INSERT INTO lead_tags(connection_id,phone,tag_id,source) SELECT $1,$2,$3,'ai_interest' WHERE NOT EXISTS(SELECT 1 FROM lead_tag_suppressions WHERE connection_id=$1 AND phone=$2 AND tag_id=$3) ON CONFLICT DO NOTHING RETURNING tag_id",[this.connection,phone,id]);if(result.rowCount){count++;added.push(id);}}
+   if(added.length||removed.rowCount)await tx.audit('ai_interest_tags_updated',null,{phone,added,removed:removed.rows.map(r=>r.tag_id)});
   });
  }
  async decorate(leads){

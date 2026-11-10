@@ -14,3 +14,10 @@ CREATE TABLE IF NOT EXISTS lead_tags (
  FOREIGN KEY(connection_id,phone) REFERENCES leads(connection_id,phone) ON DELETE CASCADE,
  FOREIGN KEY(connection_id,tag_id) REFERENCES contact_tags(connection_id,id) ON DELETE CASCADE
 );
+ALTER TABLE lead_tags ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','ai_interest'));
+CREATE TABLE IF NOT EXISTS lead_tag_suppressions (
+ connection_id text NOT NULL,phone text NOT NULL,tag_id uuid NOT NULL,
+ PRIMARY KEY(connection_id,phone,tag_id),
+ FOREIGN KEY(connection_id,phone) REFERENCES leads(connection_id,phone) ON DELETE CASCADE,
+ FOREIGN KEY(connection_id,tag_id) REFERENCES contact_tags(connection_id,id) ON DELETE CASCADE
+);

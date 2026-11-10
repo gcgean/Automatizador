@@ -19,3 +19,9 @@ No histórico, clique em **Etiquetas** para selecionar etiquetas existentes ou c
 - Etiquetas não enviam mensagens ao cliente, não alteram a agenda e não mudam a classificação quente/morno/frio.
 
 As tabelas `contact_tags` e `lead_tags` são criadas automaticamente. Nenhuma transferência, conversa ou agendamento existente é regravado na atualização.
+
+## Etiquetas automáticas de interesse
+
+Após responder ao cliente, a IARA usa o campo estruturado produtos_interesse para aplicar até três etiquetas padronizadas em leads mornos ou quentes ainda sob atendimento automático. Exemplos: NF-e, NFS-e, NFC-e, Emissão de nota fiscal, Gestão de loja, Controle de estoque, Gestão financeira e Frente de caixa / PDV. Um cumprimento, interesse não reconhecido ou produto recusado não cria uma etiqueta arbitrária.
+
+As etiquetas existentes são reutilizadas, inclusive variações de acentuação e grafia conhecidas. O limite continua em dez etiquetas por contato e cem por conexão. A origem de cada vínculo é manual ou ai_interest; ao mudar o interesse, apenas vínculos automáticos anteriores são atualizados. Etiquetas mantidas/aplicadas pela equipe ficam manuais. Uma etiqueta automática removida pela equipe fica suprimida nesse contato e não é recolocada pela automação. Contatos transferidos, bloqueados ou encerrados não recebem alterações automáticas. As mudanças têm auditoria e não enviam mensagens por conta própria nem eventos adicionais à Meta.
