@@ -18,6 +18,7 @@ export class PgStore {
   await this.pool.query(await fs.readFile(new URL('./media-schema.sql',import.meta.url),'utf8'));
   await this.pool.query(await fs.readFile(new URL('./cadence-schema.sql',import.meta.url),'utf8'));
   await this.pool.query(await fs.readFile(new URL('./tags-schema.sql',import.meta.url),'utf8'));
+  await this.pool.query(await fs.readFile(new URL('./meta-schema.sql',import.meta.url),'utf8'));
   if(workerLock){this.lockClient=await this.pool.connect();const {rows}=await this.lockClient.query('SELECT pg_try_advisory_lock(734915804) AS acquired');if(!rows[0].acquired){this.lockClient.release();this.lockClient=null;throw new Error('Já existe um servidor de atendimento usando este banco.');}this.lockClient.on('error',()=>{console.error('Conexão de coordenação perdida. Reinício necessário.');process.exit(1);});}
  }
  async close(){if(this.lockClient){await this.lockClient.query('SELECT pg_advisory_unlock(734915804)');this.lockClient.release();}await this.pool.end();}

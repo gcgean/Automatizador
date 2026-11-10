@@ -19,7 +19,7 @@ export function extractMessages(payload, phoneNumberId) {
       const names = Object.fromEntries((value.contacts ?? []).map(c => [c.wa_id, c.profile?.name ?? '']));
       for (const msg of value.messages ?? []) {
         if(msg.type==='interactive'&&msg.interactive?.type==='call_permission_reply')continue;
-        out.push({id: msg.id, from: msg.from, name: names[msg.from] ?? '', type: msg.type, text: describe(msg),...(['audio','image','video','document','sticker'].includes(msg.type)&&msg[msg.type]?.id?{media:{kind:msg.type,id:msg[msg.type].id,mime:msg[msg.type].mime_type||'',filename:msg[msg.type].filename||'',caption:msg[msg.type].caption||'',sha256:msg[msg.type].sha256||''}}:{})});
+        out.push({id: msg.id, from: msg.from, name: names[msg.from] ?? '', type: msg.type, text: describe(msg),...(msg.referral?{referral:msg.referral,timestamp:msg.timestamp}:{}),...(['audio','image','video','document','sticker'].includes(msg.type)&&msg[msg.type]?.id?{media:{kind:msg.type,id:msg[msg.type].id,mime:msg[msg.type].mime_type||'',filename:msg[msg.type].filename||'',caption:msg[msg.type].caption||'',sha256:msg[msg.type].sha256||''}}:{})});
       }
     }
   }

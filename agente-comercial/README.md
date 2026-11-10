@@ -54,3 +54,5 @@ docker compose -f docker-compose.prod.yml ps
 ```
 
 PostgreSQL usa volume nomeado persistente e não publica porta externa. O backup faz `pg_dump` a cada 24 horas para `backups/`, com retenção de 14 dias. Guarde também cópias em outro dispositivo para proteção contra perda deste computador.
+
+- [Qualificação comercial e retorno dos anúncios à Meta](docs/anuncios-meta.md)

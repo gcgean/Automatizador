@@ -31,7 +31,7 @@ export class ConnectionRegistry{
   const matches=(await this.list()).filter(c=>(payload.entry||[]).some(e=>(e.changes||[]).some(change=>change.value?.metadata?.phone_number_id===c.phoneNumberId)));
   if(!matches.length){for(const c of await this.list()){if(verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))return;}throw Object.assign(new Error('invalid signature'),{status:401});}
   for(const c of matches){if(!verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))throw Object.assign(new Error('invalid signature'),{status:401});}
-  for(const c of matches){const runtime=await this.runtime(c.id);if(this.calling)await this.calling.receive(c.id,payload,c.phoneNumberId);for(const status of extractStatuses(payload,c.phoneNumberId))await runtime.store.recordDelivery(status);for(const message of extractMessages(payload,c.phoneNumberId))await runtime.inbox.accept({...message,connectionId:c.id});}
+  for(const c of matches){const runtime=await this.runtime(c.id);if(this.calling)await this.calling.receive(c.id,payload,c.phoneNumberId);for(const status of extractStatuses(payload,c.phoneNumberId))await runtime.store.recordDelivery(status);for(const message of extractMessages(payload,c.phoneNumberId)){if(this.meta)await this.meta.capture(c.id,message);await runtime.inbox.accept({...message,connectionId:c.id});}}
  }
  async save(body){
   const id=body.id||crypto.randomUUID();

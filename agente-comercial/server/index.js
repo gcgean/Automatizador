@@ -14,6 +14,7 @@ import {evaluateLead} from './qualification.js';
 import {blockingJob} from '../shared/delivery.js';
 import {ConversationAccess} from './conversation-access.js';
 import {TagService} from './tags.js';
+import {MetaConversions} from './meta-conversions.js';
 import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
@@ -29,7 +30,7 @@ import {DurableInbox} from './inbox.js';
 
 const MAX_BODY = 1024 * 1024;
 
-export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, log = console}) {
+export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, meta, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   return async function handler(req, res) {
     let store=rootStore,inbox=baseInbox,access=null,tags=null;
@@ -192,6 +193,21 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const agendaReview=url.pathname.match(/^\/agenda\/review\/([a-f0-9-]{36})$/i);
         if(agenda&&agendaReview&&req.method==='POST')return send(res,200,await agenda.review(connectionId,agendaReview[1],JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         const qualification=url.pathname.match(/^\/leads\/(\d+)\/qualify$/);
+        if(meta&&url.pathname==='/meta/settings'){
+          if(!administrator)return send(res,403,'A integração com anúncios exige administrador.');
+          if(req.method==='GET')return send(res,200,await meta.settings(connectionId));
+          if(req.method==='POST')return send(res,200,await meta.configure(connectionId,JSON.parse((await readBody(req)).toString()),currentUser));
+        }
+        const metaLead=url.pathname.match(/^\/leads\/(\d+)\/(meta|sales-qualification|meta-purchase)$/);
+        if(meta&&metaLead){
+          if(req.method==='GET'&&metaLead[2]==='meta')return send(res,200,await meta.contact(connectionId,metaLead[1]));
+          if(req.method==='POST'&&metaLead[2]==='meta-purchase')return send(res,200,await meta.purchase(connectionId,metaLead[1],currentUser));
+          if(req.method==='POST'&&metaLead[2]==='sales-qualification'){
+            const body=JSON.parse((await readBody(req)).toString());const updated=await meta.classify(connectionId,metaLead[1],body,currentUser);
+            if(cadence&&body.status==='disqualified')await cadence.stop(connectionId,metaLead[1],'Lead descartado pela equipe');
+            return send(res,200,updated);
+          }
+        }
         if(qualification&&req.method==='POST')return send(res,200,await evaluateLead(store,qualification[1]));
         const leadState=url.pathname.match(/^\/leads\/(\d+)\/state$/);
         if(leadState&&req.method==='POST'){
@@ -406,6 +422,8 @@ async function main() {
   calling?.bind(registry);
   cadence?.bind(registry);media?.bind(registry);
   if(registry)await registry.init();
+  const meta=registry?new MetaConversions(store,registry):null;
+  if(meta){await meta.init();registry.meta=meta;}
   const simulation=registry?new SimulationService(store,config):null;
   if(simulation)await simulation.init();
   const learning=registry?new LearningService(store,registry):null;
@@ -418,7 +436,8 @@ async function main() {
   const learningTimer=learning?setInterval(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),3600000):null;
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
-  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling})).listen(config.port, config.host, () => {
+  const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
+  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling,meta})).listen(config.port, config.host, () => {
     console.log(`Agente comercial ouvindo na porta ${config.port}. Webhook: /webhook`);
     store.getSettings().then(s => {
       const name = s.aiProvider || config.aiProvider;
@@ -428,7 +447,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{if(registry)await registry.drain();else await inbox.drain();await simulation?.close();await crm?.close();await cadence?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{if(registry)await registry.drain();else await inbox.drain();await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }
