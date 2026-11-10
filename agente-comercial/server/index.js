@@ -15,6 +15,7 @@ import {blockingJob} from '../shared/delivery.js';
 import {ConversationAccess} from './conversation-access.js';
 import {TagService} from './tags.js';
 import {MetaConversions} from './meta-conversions.js';
+import {TextImprover} from './text-improver.js';
 import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
@@ -30,7 +31,7 @@ import {DurableInbox} from './inbox.js';
 
 const MAX_BODY = 1024 * 1024;
 
-export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, meta, log = console}) {
+export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, meta, textImprover, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   return async function handler(req, res) {
     let store=rootStore,inbox=baseInbox,access=null,tags=null;
@@ -193,6 +194,12 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const agendaReview=url.pathname.match(/^\/agenda\/review\/([a-f0-9-]{36})$/i);
         if(agenda&&agendaReview&&req.method==='POST')return send(res,200,await agenda.review(connectionId,agendaReview[1],JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         const qualification=url.pathname.match(/^\/leads\/(\d+)\/qualify$/);
+        const improveText=url.pathname.match(/^\/leads\/(\d+)\/improve-text$/);
+        if(textImprover&&improveText&&req.method==='POST'){
+          const result=await textImprover.improve(connectionId,improveText[1],JSON.parse((await readBody(req)).toString()),currentUser);
+          if(auth){const latest=await auth.user(req);if(!latest||!can(latest,'messages.send')||latest.role!=='admin'&&!latest.connections.includes(connectionId))return send(res,403,'Seu acesso mudou. A sugestão não foi aplicada.');await new ConversationAccess(store,latest).assert(improveText[1]);}
+          return send(res,200,result);
+        }
         if(meta&&url.pathname==='/meta/settings'){
           if(!administrator)return send(res,403,'A integração com anúncios exige administrador.');
           if(req.method==='GET')return send(res,200,await meta.settings(connectionId));
@@ -423,6 +430,7 @@ async function main() {
   cadence?.bind(registry);media?.bind(registry);
   if(registry)await registry.init();
   const meta=registry?new MetaConversions(store,registry):null;
+  const textImprover=registry?new TextImprover(store):null;
   if(meta){await meta.init();registry.meta=meta;if(crm)crm.deals.meta=meta;}
   const simulation=registry?new SimulationService(store,config):null;
   if(simulation)await simulation.init();
@@ -437,7 +445,7 @@ async function main() {
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
   const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
-  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling,meta})).listen(config.port, config.host, () => {
+  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling,meta,textImprover})).listen(config.port, config.host, () => {
     console.log(`Agente comercial ouvindo na porta ${config.port}. Webhook: /webhook`);
     store.getSettings().then(s => {
       const name = s.aiProvider || config.aiProvider;
