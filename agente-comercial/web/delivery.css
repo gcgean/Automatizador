@@ -1,3 +1,29 @@
 .delivery-warning{padding:12px 15px;background:#fff2d4;color:#70500d;border-bottom:1px solid #e9ce8b;font-size:12px}.delivery-warning-heading{display:flex;gap:7px;align-items:center}.delivery-warning p{margin:7px 0}.delivery-warning details{margin:9px 0}.delivery-warning summary{cursor:pointer}.delivery-warning blockquote{margin:7px 0;padding:8px;border-left:3px solid #bd8b25;background:#fff8e6;white-space:pre-wrap;overflow-wrap:anywhere}.delivery-warning li{white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:4px}.delivery-warning button{font-size:11px;white-space:normal}.delivery-warning small{color:inherit}.integration-chip.send-warning{background:#ffdcad;color:#784715}.chat-dark .delivery-warning{background:#433622;color:#ffdda0;border-color:#70572e}.chat-dark .delivery-warning blockquote{background:#352d21}.chat-dark .integration-chip.send-warning{background:#68451f;color:#ffe0a8}
 
 .delivery-warning li>button{margin:5px 0 8px;display:flex;font-size:10px}
+.pending-compact{flex-shrink:0;margin-top:6px;display:flex;justify-content:flex-end}
+.pending-trigger{display:flex;align-items:center;gap:8px;padding:5px 10px;min-height:30px;border:1px solid #ddc58a;border-radius:6px;background:#fff8e7;color:#70500d;font-size:11px}
+.pending-trigger>span:first-of-type,.pending-dialog-heading h2 span{background:#ffe3a0;color:#6a4700;border-radius:10px;padding:1px 6px;font-size:11px}
+.pending-trigger-link{text-decoration:underline}
+.pending-dialog{position:fixed;inset:0;margin:auto;width:min(960px,calc(100vw - 32px));max-width:none;max-height:80dvh;padding:0;border:1px solid #ccd6e2;border-radius:12px;background:#fff;color:#172b46;box-shadow:0 18px 70px #0005;overflow:hidden}
+.pending-dialog[open]{display:flex;flex-direction:column}
+.pending-dialog::backdrop{background:#09192399}
+.pending-dialog-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #dce4ed;flex-shrink:0}
+.pending-dialog-heading h2{margin:0;font-size:16px}
+.pending-dialog-heading .icon-button{color:inherit;background:transparent}
+.pending-help{margin:0;padding:12px 18px;font-size:12px;color:#52657d;flex-shrink:0}
+.pending-dialog .table-wrap{overflow:auto;min-height:0;padding:0 18px 16px}
+.pending-dialog table{color:inherit;width:100%;min-width:620px}
+.pending-dialog th{background:#eef3f9;color:#50647f}
+.pending-dialog td{border-color:#dce4ed}
+.pending-dialog .preview{white-space:normal;overflow-wrap:anywhere;max-width:460px}
+.pending-dialog td small{display:block;margin-top:5px}
+.pending-dialog .secondary{background:#f4f7fb;color:#254c7e;border-color:#bdccdf}
+.chat-dark .pending-trigger{background:#352e20;color:#ffdda0;border-color:#6a5734}
+.chat-dark .pending-dialog{background:#1e2d35;color:#e8eff2;border-color:#40545f}
+.chat-dark .pending-dialog-heading,.chat-dark .pending-dialog td{border-color:#3b4d57}
+.chat-dark .pending-help{color:#bccbd3}
+.chat-dark .pending-dialog th{background:#273b46;color:#d0dde4}
+.chat-dark .pending-dialog .secondary{background:#253c48;color:#e3edf3;border-color:#57707d}
+.chat-dark .pending-dialog .error{color:#ffadad}
+@media(max-width:599px){.pending-dialog{width:calc(100vw - 16px);max-height:85dvh}.pending-dialog-heading{padding:12px}.pending-help{padding:10px 12px}.pending-dialog .table-wrap{padding:0 12px 12px}.pending-trigger{padding:4px 8px}.pending-dialog-heading h2{font-size:14px}}
