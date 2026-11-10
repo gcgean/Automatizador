@@ -24,7 +24,8 @@ test('usuários: convite, perfis, conexões autorizadas, revogação e proteçã
   const createBody={name:'Atendente QA',email:'operator@example.com',role:'operator',active:true,connections:[connection.id]};
   const created=await post('/users',createBody,cookie);assert.equal(created.status,201);const operator=await created.json();assert.ok(operator.invitation.startsWith(root+'/#'));let token=new URLSearchParams(new URL(operator.invitation).hash.slice(1)).get('setup');
   assert.equal((await post('/users',createBody,cookie)).status,409);
-  const opActivation=await post('/auth/setup',{email:createBody.email,password:'Operator-password-2026',setupToken:token});assert.equal(opActivation.status,200);const opUser=await opActivation.json(),opCookie=opActivation.headers.get('set-cookie').split(';')[0];assert.equal(opUser.role,'operator');assert.deepEqual(opUser.connections,[connection.id]);
+  assert.equal((await post('/auth/setup',{email:createBody.email,password:'Short27',setupToken:token})).status,400);
+  const opActivation=await post('/auth/setup',{email:createBody.email,password:'Seller26',setupToken:token});assert.equal(opActivation.status,200);const opUser=await opActivation.json(),opCookie=opActivation.headers.get('set-cookie').split(';')[0];assert.equal(opUser.role,'operator');assert.deepEqual(opUser.connections,[connection.id]);
   const ownConnections=await get('/connections',opCookie);const list=await ownConnections.json();assert.equal(list.length,1);assert.equal(list[0].id,connection.id);assert.equal(list[0].phoneNumberId,undefined);
   const allowed=await get('/conversations/'+phone+'?connection='+connection.id,opCookie);assert.equal(allowed.status,200);assert.match(await allowed.text(),/conexão B/);
   assert.equal((await get('/leads?connection=default',opCookie)).status,403);
@@ -36,13 +37,13 @@ test('usuários: convite, perfis, conexões autorizadas, revogação e proteçã
   assert.equal((await post('/users/'+operator.id,{...createBody,connections:['default']},cookie)).status,200);
   assert.equal((await get('/leads?connection='+connection.id,opCookie)).status,403);assert.equal((await get('/leads?connection=default',opCookie)).status,200);
   assert.equal((await post('/users/'+operator.id,{...createBody,role:'viewer'},cookie)).status,200);assert.equal((await get('/auth/me',opCookie)).status,401);
-  const viewerLogin=await post('/auth/login',{email:createBody.email,password:'Operator-password-2026',role:'admin'});assert.equal(viewerLogin.status,200);assert.equal((await viewerLogin.json()).role,'viewer');const viewerCookie=viewerLogin.headers.get('set-cookie').split(';')[0];
+  const viewerLogin=await post('/auth/login',{email:createBody.email,password:'Seller26',role:'admin'});assert.equal(viewerLogin.status,200);assert.equal((await viewerLogin.json()).role,'viewer');const viewerCookie=viewerLogin.headers.get('set-cookie').split(';')[0];
   assert.equal((await get('/leads?connection='+connection.id,viewerCookie)).status,200);assert.equal((await post('/leads/'+phone+'/reply?connection='+connection.id,{text:'Não pode enviar',requestId:crypto.randomUUID()},viewerCookie)).status,403);assert.equal((await post('/leads/'+phone+'/state?connection='+connection.id,{temperatura:'quente'},viewerCookie)).status,403);
-  assert.equal((await post('/auth/password',{currentPassword:'Operator-password-2026',newPassword:'Viewer-password-2026'},viewerCookie)).status,200);
+  assert.equal((await post('/auth/password',{currentPassword:'Seller26',newPassword:'Viewer26'},viewerCookie)).status,200);
   assert.equal((await post('/users/'+owner.id,{name:'Owner',email:owner.email,role:'operator',active:false,connections:[connection.id]},cookie)).status,409);
   const reset=await post('/users/'+operator.id+'/invitation',{},cookie);assert.equal(reset.status,200);const newInvite=await reset.json();assert.notEqual(newInvite.invitation,operator.invitation);
   assert.equal((await post('/auth/setup',{email:createBody.email,password:'Another-password-2026',setupToken:token})).status,401);
-  assert.equal((await post('/auth/login',{email:createBody.email,password:'Viewer-password-2026'})).status,401);
+  assert.equal((await post('/auth/login',{email:createBody.email,password:'Viewer26'})).status,401);
   token=new URLSearchParams(new URL(newInvite.invitation).hash.slice(1)).get('setup');
   assert.equal((await post('/users/'+operator.id,{...createBody,role:'viewer',active:false},cookie)).status,200);
   assert.equal((await post('/auth/setup',{email:createBody.email,password:'Another-password-2026',setupToken:token})).status,401);

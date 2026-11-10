@@ -4,7 +4,7 @@ import {promisify} from 'node:util';
 const scrypt=promisify(crypto.scrypt);
 const digest=value=>crypto.createHash('sha256').update(value).digest('hex');
 const normalizeEmail=value=>String(value||'').trim().toLowerCase();
-const passwordValid=value=>typeof value==='string'&&value.length>=12&&value.length<=256;
+const passwordValid=value=>typeof value==='string'&&value.length>=8&&value.length<=256;
 const COOKIE='command_session';
 export async function hashPassword(password){const salt=crypto.randomBytes(16).toString('hex');const key=await scrypt(password,salt,64,{N:32768,r:8,p:1,maxmem:64*1024*1024});return 'scrypt$'+salt+'$'+key.toString('hex');}
 export async function verifyPassword(password,encoded){
@@ -39,7 +39,7 @@ export class PasswordAuth{
   if(url.pathname==='/auth/password'){
    const user=await this.user(req);if(!user)return respond(401,'Entre novamente.');
    const body=JSON.parse((await readBody(req)).toString());
-   if(!passwordValid(body.newPassword))return respond(400,'A nova senha deve ter de 12 a 256 caracteres.');
+   if(!passwordValid(body.newPassword))return respond(400,'A nova senha deve ter de 8 a 256 caracteres.');
    const {rows}=await this.db.query('SELECT password_hash FROM users WHERE id=$1',[user.id]);
    const key=digest('password:'+user.id);if(await this.throttled(key))return respond(429,'Muitas tentativas. Aguarde 15 minutos.');
    if(!await verifyPassword(body.currentPassword,rows[0]?.password_hash)){await this.fail(key);return respond(401,'Senha atual incorreta.');}
@@ -57,7 +57,7 @@ export class PasswordAuth{
   const user=rows[0];
   if(url.pathname==='/auth/setup'){
    const token=typeof body.setupToken==='string'?body.setupToken:'';
-   if(!passwordValid(body.password))return respond(400,'A senha deve ter de 12 a 256 caracteres.');
+   if(!passwordValid(body.password))return respond(400,'A senha deve ter de 8 a 256 caracteres.');
    const encoded=await hashPassword(body.password);
    const {rowCount}=await this.db.query(`UPDATE users SET password_hash=$1,setup_hash=NULL,setup_expires_at=NULL WHERE email=$2 AND password_hash IS NULL AND setup_hash=$3 AND setup_expires_at>now() AND active`,[encoded,email,digest(token)]);
    if(!rowCount){await this.fail(key);return respond(401,'Link de ativação inválido, expirado ou já utilizado.');}
