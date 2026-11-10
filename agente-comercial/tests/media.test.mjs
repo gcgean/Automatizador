@@ -17,12 +17,12 @@ test('anexos: download privado, transcrição, descadastro por voz, envio e dedu
  const pool=new Pool({connectionString:url.toString()}),schema='media_'+crypto.randomBytes(8).toString('hex');await pool.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-qa-')),store=new PgStore(url.toString(),dir);let server;
  try{
- await store.init();const bytes=Buffer.from('synthetic media for transport test'),sent=[];let transcript='Quero conhecer o sistema',asrFails=false,uploads=0;
+ await store.init();const bytes=Buffer.from('synthetic media for transport test'),sent=[];let transcript='Quero conhecer o sistema',asrFails=false,uploads=0,converterMime='audio/mp4';
  const config={dataDir:dir,transcriberUrl:'http://private-asr',aiProvider:'deepseek',sellerNumbers:[],graphVersion:'v23.0',accessToken:'synthetic',phoneNumberId:'123456'};
  const fake=async(url,options={})=>{
   if(url==='http://private-asr/transcribe')return asrFails?new Response('{}',{status:503}):Response.json({text:transcript});
-  if(url==='http://private-asr/convert-audio')return new Response(bytes,{headers:{'Content-Type':'audio/ogg'}});
-  if(url==='https://graph.facebook.com/v23.0/123456/media'){uploads++;assert.ok(options.body instanceof FormData);return Response.json({id:'888888'});}
+  if(url==='http://private-asr/convert-audio-m4a')return new Response(bytes,{headers:{'Content-Type':converterMime}});
+  if(url==='https://graph.facebook.com/v23.0/123456/media'){uploads++;assert.ok(options.body instanceof FormData);if(options.body.get('file').type==='audio/mp4'){assert.equal(options.body.get('type'),'audio/mp4');assert.ok(options.body.get('file').name.endsWith('.m4a'));}return Response.json({id:'888888'});}
   if(url.endsWith('/messages')){if(!JSON.parse(options.body).status)sent.push(JSON.parse(options.body));return Response.json({messages:[{id:'wamid-'+sent.length}]});}
   if(url.startsWith('https://graph.facebook.com/'))return Response.json({url:'https://lookaside.fbsbx.com/media',mime_type:'audio/ogg',sha256:crypto.createHash('sha256').update(bytes).digest('base64'),file_size:bytes.length});
   if(url==='https://lookaside.fbsbx.com/media')return new Response(bytes);
@@ -40,9 +40,10 @@ test('anexos: download privado, transcrição, descadastro por voz, envio e dedu
  for(const [mime,name] of [['image/png','imagem.png'],['video/mp4','video.mp4'],['audio/webm','gravacao.webm'],['application/pdf','arquivo.pdf']]){
   const meta={mime,name,caption:mime.startsWith('audio/')?'':'Legenda',requestId:crypto.randomUUID()};const a=await media.outgoing('default',phone,meta,Readable.from([bytes]));assert.equal((await media.outgoing('default',phone,meta,Readable.from([bytes]))).id,a.id);
   await assert.rejects(media.outgoing('default',phone,{...meta,caption:'outra'},Readable.from([bytes])),/áudio|Identificador/);
-  await media.send(agent,phone,a.id);const body=sent.at(-1);assert.equal(body.type,a.kind);assert.equal(body[a.kind].id,'888888');if(a.kind==='audio')assert.equal(a.mime,'audio/ogg');
+  await media.send(agent,phone,a.id);const body=sent.at(-1);assert.equal(body.type,a.kind);assert.equal(body[a.kind].id,'888888');if(a.kind==='audio'){assert.equal(a.mime,'audio/mp4');assert.ok(a.name.endsWith('.m4a'));}
  }
  assert.equal(uploads,4);
+ converterMime='audio/ogg';await assert.rejects(media.outgoing('default',phone,{mime:'audio/webm',name:'old-converter.webm',caption:'',requestId:crypto.randomUUID()},Readable.from([bytes])),/conversor/);assert.equal(uploads,4);converterMime='audio/mp4';
  const p='5511999993333',at=n=>new Date(Date.now()+n*1000).toISOString();await scoped.updateLead(p,{nome:'Contador QA'});
  for(let n=1;n<=2;n++)await scoped.recordEvent({id:'pending-'+n,phone:p,direction:'in',text:'Pergunta '+n,at:at(n)});
  assert.equal((await scoped.listLeads())[p].pendingReplyCount,2);await scoped.getEvents(p);assert.equal((await scoped.listLeads())[p].pendingReplyCount,2);

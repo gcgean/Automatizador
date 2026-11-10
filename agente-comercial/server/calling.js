@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import {visibilitySQL,canSeeLead} from './conversation-access.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 const phone=value=>typeof value==='string'&&/^\d{8,15}$/.test(value);
@@ -44,10 +45,11 @@ export class CallingService {
   catch(e){await scoped.recordEvent({id,phone:to,direction:'out',state:'uncertain'});throw e;}
  }
  async list(connection,actor,clientId){
-  const {rows}=await this.store.pool.query('SELECT * FROM whatsapp_calls WHERE connection_id=$1 ORDER BY created_at DESC LIMIT 30',[connection]);
+  const viewer=actor.role==='admin'?null:actor.id;
+  const {rows}=await this.store.pool.query(`SELECT c.*,COALESCE(l.data->>'nome',l.data->>'nomeWhatsApp') AS contact_name FROM whatsapp_calls c LEFT JOIN leads l ON l.connection_id=c.connection_id AND l.phone=c.phone WHERE c.connection_id=$1 AND ($2::text IS NULL OR ${visibilitySQL('c.connection_id','c.phone','$2')}) ORDER BY (c.state NOT IN ('ended','rejected','failed')) DESC,c.created_at DESC LIMIT 30`,[connection,viewer]);
   return rows.map(r=>this.public(r,actor,clientId));
  }
- public(r,actor,clientId){const mine=r.operator_id===actor.id&&r.client_id===clientId;return {id:r.id,phone:r.phone,direction:r.direction,state:r.state,operatorName:r.operator_name,mine,createdAt:r.created_at,updatedAt:r.updated_at,...(mine&&!ended.has(r.state)?{session:r.remote_session}:{})};}
+ public(r,actor,clientId){const mine=r.operator_id===actor.id&&r.client_id===clientId;return {id:r.id,phone:r.phone,contactName:r.contact_name||null,direction:r.direction,state:r.state,operatorName:r.operator_name,mine,createdAt:r.created_at,updatedAt:r.updated_at,...(mine&&!ended.has(r.state)?{session:r.remote_session}:{})};}
  async human(connection,to,actor){const scoped=this.store.scope(connection),lead=await scoped.getLead(to);await scoped.updateLead(to,{status:'encaminhado',humanControlId:crypto.randomUUID(),...(!lead?.assignedUserId?{assignedUserId:actor.id,assignedUserName:actor.name||actor.email}:{})});}
  async start(connection,body,actor){
   if(!uuid(body.clientId)||!uuid(body.requestId))throw fail('Identificador de ligação inválido.');validateSession(body.session,'offer');await this.contact(connection,body.phone);
@@ -79,6 +81,7 @@ export class CallingService {
    if(ended.has(row.state))return this.public(row,actor,body.clientId);
    const mine=row.operator_id===actor.id&&row.client_id===body.clientId;
    if(action==='claim'){
+    if(!canSeeLead(actor,await this.store.scope(connection).getLead(row.phone)))throw fail('Atendimento não encontrado ou indisponível para seu usuário.',404);
     await tx.pool.query('SELECT pg_advisory_xact_lock(hashtext($1))',['call-operator:'+actor.id]);
     if(row.operator_id&&!mine)throw fail('Outro atendente já assumiu esta ligação.',409);
     if(row.direction!=='USER_INITIATED'||row.state!=='ringing')throw fail('Esta ligação não está disponível para atender.',409);

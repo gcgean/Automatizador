@@ -5,9 +5,9 @@ O painel faz e recebe ligações pelo WhatsApp Business Calling API, com áudio 
 ## Usar
 
 1. Abra o painel em HTTPS e selecione a conexão WhatsApp.
-2. Clique em **Ativar atendimento de ligações** e permita o microfone no navegador.
-3. Mantenha o painel aberto. Ao receber uma chamada, clique em **Atender** ou **Recusar**.
-4. Para ligar, selecione um contato e clique em **Ligar**. Se necessário, o painel oferece enviar uma solicitação de autorização. Após o cliente autorizar no WhatsApp, clique em **Ligar** novamente.
+2. Em **Configurações → Ligações**, configure o recebimento do número e, se desejar, prepare o microfone e os avisos sonoros neste navegador.
+3. Mantenha a plataforma aberta. Chamadas recebidas aparecem em avisos flutuantes, inclusive ao navegar por configurações e outras telas ou quando chegam por outra conexão à qual você tenha acesso. Clique em **Atender** ou **Recusar**; o navegador solicita o microfone quando necessário.
+4. Para ligar, selecione um contato e clique em **Ligar**, no cabeçalho da conversa, antes de **Transferir**. Se necessário, o painel oferece enviar uma solicitação de autorização. Após o cliente autorizar no WhatsApp, clique em **Ligar** novamente.
 5. Durante a ligação, use **Silenciar**, **Ouvir ligação** (se o navegador bloquear a reprodução) e **Encerrar**.
 
 As ligações de saída exigem autorização atual do cliente. O servidor consulta a autorização e os limites na Meta antes de originar a chamada. Solicitações livres de autorização exigem uma mensagem recebida nas últimas 24 horas. Fora dessa janela, peça que o cliente envie uma mensagem; esta versão não envia templates de autorização.
@@ -36,7 +36,7 @@ Administradores também podem habilitar/desabilitar chamadas da conexão selecio
 - Se a rede bloquear WebRTC, configure um serviço TURN controlado pela empresa usando `CALL_ICE_SERVERS`, como um array JSON de objetos RTCIceServer. Essas configurações são entregues apenas aos atendentes autenticados com permissão de chamadas. Não coloque credenciais reais no Git. O padrão é `[]`.
 - Ao fechar o painel ou perder a sessão, o servidor tenta encerrar a chamada após 45 segundos sem confirmação do navegador. Chamadas sem atendente expiram após aproximadamente 75 segundos. Sem acesso à Meta, o encerramento remoto depende da recuperação da API.
 - Requisições de origem são identificadas por UUID e não são repetidas automaticamente. Se o resultado for incerto, aguarde a atualização; o sistema mantém a reserva e permite solicitar o encerramento.
-- As últimas chamadas ficam no painel. Dados de negociação de áudio são removidos quando a ligação termina. Esta versão não oferece transferência de voz, gravação, fila de ramais nem atendimento automático pela IA.
+- O histórico de chamadas fica em **Configurações → Ligações**. Chamadas de contatos atribuídos aparecem somente para o responsável e administradores; chamadas sem responsável aparecem para toda a equipe autorizada. A reserva é exclusiva de quem atender primeiro. As configurações são específicas da conexão selecionada. Dados de negociação de áudio são removidos quando a ligação termina. Esta versão não oferece transferência de voz, gravação, fila de ramais nem atendimento automático pela IA.
 
 ## Verificação
 
