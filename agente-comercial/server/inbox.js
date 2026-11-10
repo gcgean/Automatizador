@@ -63,9 +63,11 @@ export class DurableInbox {
     const phone = this.jobs[key].message.from;
     const previous = this.queues.get(phone) || Promise.resolve();
     const next = previous.then(async () => {
-      const blocked = Object.values(this.jobs).some(job => job.message.from === phone && job.status === 'attention');
-      if (blocked || this.jobs[key].status !== 'queued') return;
-      await this.update(jobs => { jobs[key].status = 'processing'; });
+      const claimed=await this.update(jobs=>{
+        if(jobs[key]?.status!=='queued'||Object.values(jobs).some(job=>job.message.from===phone&&job.status==='attention'))return false;
+        jobs[key].status='processing';return true;
+      });
+      if(!claimed)return;
       try {
         await this.agent.enqueue(this.jobs[key].message);
         await this.update(jobs => { jobs[key].status = 'done'; });

@@ -11,6 +11,7 @@ import {UserAdministration} from './users.js';
 import {ConnectionRegistry} from './connections.js';
 import {LearningService} from './learning.js';
 import {evaluateLead} from './qualification.js';
+import {blockingJob} from '../shared/delivery.js';
 import {ConversationAccess} from './conversation-access.js';
 import {TagService} from './tags.js';
 import {CallingService} from './calling.js';
@@ -163,7 +164,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           await store.updateLead(phone,{avatarAttachmentId:body.attachmentId||false});return send(res,200,{ok:true});
         }
         const fileRoute=url.pathname.match(/^\/media\/([a-f0-9-]{36})$/i);if(media&&fileRoute&&req.method==='GET'){await access.assert((await media.get(fileRoute[1],connectionId)).phone);return await media.serve(req,res,fileRoute[1],connectionId);}
-        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){const lead=await store.getLead(uploadRoute[1]);if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,operator:currentUser?{id:currentUser.id,name:currentUser.name||currentUser.email,administrator}:undefined,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
+        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){if(blockingJob(inbox?.jobs,uploadRoute[1]))return send(res,409,'Há um envio anterior sem confirmação. Confira a pendência deste contato antes de enviar outro anexo.');const lead=await store.getLead(uploadRoute[1]);if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,operator:currentUser?{id:currentUser.id,name:currentUser.name||currentUser.email,administrator}:undefined,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='GET')return send(res,200,await cadence.settings(connectionId));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='POST')return send(res,200,await cadence.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         if(cadence&&url.pathname==='/cadence/templates'&&req.method==='GET')return send(res,200,await cadence.templates(connectionId));
@@ -234,6 +235,15 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const entries=Object.entries(inbox?.jobs||{});const allowed=access?await access.filter(entries,entry=>entry[1].message.from):entries;return send(res,200,Object.fromEntries(allowed));
       }
 
+      if(req.method==='POST'&&url.pathname==='/inbox/cancel'){
+        if(!authorized())return send(res,401,'unauthorized');if(!inbox)return send(res,503,'Fila indisponível');
+        const body=JSON.parse((await readBody(req)).toString());if(typeof body.id!=='string')return send(res,400,'Informe a mensagem na fila.');
+        const key=Buffer.from(body.id).toString('base64url');if(access&&inbox.jobs[key])await access.assert(inbox.jobs[key].message.from);
+        const cancelled=await inbox.update(jobs=>{if(jobs[key]?.status!=='queued')return false;jobs[key].status='done';jobs[key].resolution='cancelled_before_send';jobs[key].resolvedAt=new Date().toISOString();return true;});
+        if(!cancelled)return send(res,409,'A mensagem já saiu da fila ou exige conferência.');
+        await store.audit?.('queued_message_cancelled',currentUser?.id||null,{id:body.id});return send(res,200,{ok:true});
+      }
+
       if (req.method === 'POST' && url.pathname === '/inbox/resolve') {
         if (!authorized()) return send(res, 401, 'unauthorized');
         if (!inbox) return send(res, 503, 'Fila indisponível');
@@ -290,7 +300,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if (config.panelOnly || !inbox) return send(res, 503, 'Atendimento ainda não configurado.');
         const body = JSON.parse((await readBody(req)).toString('utf8'));
         if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 4000 || !/^[a-zA-Z0-9-]{16,80}$/.test(body.requestId || '')) return send(res, 400, 'Mensagem ou identificador inválido.');
-        const phone = replyRoute[1],currentLead=(await store.listLeads())[replyRoute[1]];
+        const phone = replyRoute[1];if(blockingJob(inbox.jobs,phone))return send(res,409,'Há um envio anterior sem confirmação neste atendimento. Confira a pendência da conversa antes de enviar novamente.');
+        const currentLead=(await store.listLeads())[replyRoute[1]];
         if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
         if (!events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');

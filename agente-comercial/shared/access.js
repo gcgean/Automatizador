@@ -17,6 +17,6 @@ export function requiredPermission(path,method){
  if(path==='/attendants')return 'conversations.transfer';if(/^\/leads\/\d+\/transfer$/.test(path))return 'conversations.transfer';
  if(path==='/config')return method==='POST'?'ai.manage':null;if(path==='/connections')return null;
  if(method==='GET'&&(path==='/leads'||path==='/inbox'||/^\/(conversations|media)\//.test(path)||/^\/leads\/\d+\/deal$/.test(path)))return 'conversations.view';
- if(path==='/inbox/resolve')return 'queue.resolve';
+ if(path==='/inbox/resolve'||path==='/inbox/cancel')return 'queue.resolve';
  if(/^\/leads\/\d+\/reply$/.test(path))return 'messages.send';if(/^\/leads\/\d+\/media$/.test(path))return 'media.send';if(/^\/leads\/\d+\/avatar/.test(path))return 'photos.manage';if(/^\/leads\/\d+\/deal\//.test(path))return 'deals.manage';if(/^\/leads\/\d+\/(state|qualify)$/.test(path))return 'leads.manage';if(/^\/leads\/\d+\/automation$/.test(path))return 'conversations.automation';if(/^\/leads\/\d+\/block$/.test(path))return 'contacts.block';return 'admin';
 }

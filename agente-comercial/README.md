@@ -12,6 +12,7 @@ Aplicação de atendimento comercial por WhatsApp Cloud API, com painel web, Dee
 - Segundo número Comercial Cilos: [conexão e contexto separados](docs/conexao-cilos.md).
 - Responsáveis, atendimentos exclusivos e etiquetas: [como usar](docs/atendimentos-etiquetas.md).
 - Emojis e compatibilidade dos áudios gravados: [como funciona](docs/emojis-e-audio.md).
+- Mensagens na fila e confirmação de entrega: [conferir e liberar pendências](docs/entrega-mensagens.md).
 - Histórico e instalação real: `AGENTE-COMERCIAL.md`.
 
 Os arquivos JavaScript soltos da raiz recebidos na transferência são cópias anteriores; o Docker e os scripts do package.json executam a pasta `server/`.

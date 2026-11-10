@@ -50,12 +50,12 @@ export class WhatsAppClient {
   }
 
   async call(pathname, body) {
-    const response = await this.fetch(`${this.base}/${pathname}`, {
+    let response;try{response = await this.fetch(`${this.base}/${pathname}`, {
       method: 'POST',
       headers: {Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json'},
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(20000),
-    });
+    });}catch(cause){const error=new Error('Falha de conexão com a Meta. O envio não pôde ser confirmado; confira o recebimento antes de reenviar.');error.code=cause.cause?.code||cause.name;throw error;}
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const detail = data?.error?.message ?? `HTTP ${response.status}`;
