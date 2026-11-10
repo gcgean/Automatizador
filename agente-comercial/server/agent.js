@@ -140,6 +140,7 @@ export class SalesAgent {
       let scheduled;
       try{scheduled=await this.agenda.intercept(this.store.connectionId,from,text,id);}catch(error){this.log.error('[agenda]',error.message);await this.store.updateLead(from,{status:'encaminhado',motivoEncaminhamento:'falha_agenda'});scheduled={reply:'Não consegui consultar a agenda agora. A equipe vai conferir os horários e continuar seu atendimento.'};}
       if(scheduled?.reply){
+        if(this.agenda.guardReply)scheduled.reply=await this.agenda.guardReply(this.store.connectionId,from,scheduled.reply);
         if(await suppressed()){conv.processedIds.push(id);await this.store.saveConversation(conv);return null;}
         await this.whatsapp.sendText(from,scheduled.reply,{actor:'ai',provider:'agenda'});
         await this.agenda.markSent(this.store.connectionId,from,id);
@@ -184,6 +185,7 @@ export class SalesAgent {
       await this.store.updateLead(from, {status: 'encaminhado', motivoEncaminhamento: 'falha_ia'});
       await this.notifySeller(from, `Atenção: o assistente não conseguiu responder ${from}. Assuma a conversa.`);
     }
+    if(this.agenda?.guardReply){const checked=await this.agenda.guardReply(this.store.connectionId,from,reply);if(checked!==reply){if(activeHistory){activeHistory.length=turnBoundary;activeHistory.push({role:'assistant',content:checked});}reply=checked;}}
     if (await suppressed()) return null;
     await this.whatsapp.sendText(from, reply,{actor:provider?'ai':'system',provider:provider?.name});
     if(this.agenda)await this.agenda.markSent(this.store.connectionId,from,id);

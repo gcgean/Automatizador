@@ -30,6 +30,7 @@ export class SimulationService{
     else if(path==='/tecnicos')data=[{id:tech,nome:'Apresentador de teste'}];
     else if(path==='/horarios'){const from=q.get('dataInicio'),to=q.get('dataFim'),days=[];for(let d=Date.parse(from+'T12:00Z');d<=Date.parse(to+'T12:00Z');d+=86400000)days.push({data:new Date(d).toISOString().slice(0,10),tecnicoId:tech,tecnicoNome:'Apresentador de teste',horarios:['09:00','10:00','14:00','15:00']});data={duracaoMin:60,disponibilidade:days};}
     else if(path==='/agendamentos'&&options.method==='POST'){const body=JSON.parse(options.body);data={...body,id:++remote,duracaoMin:60,status:'ativo'};reservations.set(data.id,data);status=201;}
+    else if(/^\/agendamentos\/\d+$/.test(path)&&options.method==='GET'){data=reservations.get(Number(path.split('/').at(-1)));if(!data){data={error:'Agendamento simulado não encontrado.'};status=404;}}
     else throw failure('Operação não permitida no simulador');return {ok:true,status,json:async()=>data};
    };
    const agenda=new AgendaService(db,{...this.config,agendaApiKey:'ca_'+'a'.repeat(48)},{fetchImpl:fakeFetch});await agenda.save('default',{enabled:true,procedure_id:procedure,technician_ids:[tech],horizon_days:7,max_options:3,weekdays:[1,2,3,4,5],start_time:'08:00',end_time:'18:00'},null);
