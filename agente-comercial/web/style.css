@@ -43,3 +43,19 @@
 .chat-column .message.handoff-marker{margin:0 auto 12px;background:#fff4da;color:#765b1f;max-width:90%;text-align:center;font-size:11px}.chat-dark .chat-column .message.handoff-marker{background:#3b3526;color:#e7d397}.chat-dark .message.handoff-marker .message-head strong{color:#e7d397}
 @media(max-width:600px){.detail-head .controls button span{display:none}.detail-head .controls button{min-width:32px;min-height:32px;padding:6px!important;justify-content:center}.detail-head .contact-heading{min-width:0;flex:1}.detail-head .contact-heading h2{max-width:155px}.detail-head .controls{flex-shrink:0}.logged-user>span:last-child{max-width:60px}}
 .users-table .user-edit-button{font-size:11px;padding:6px 9px;white-space:nowrap}.users-table tr.selected td{background:#eaf3ff}.user-editor{scroll-margin-top:16px}.user-editing-account{font-size:12px;margin:0 0 12px;overflow-wrap:anywhere}.users-table th:last-child{width:90px}
+/* Connection controls share the application header instead of a separate row. */
+.app-header{gap:12px;padding:0 16px;flex-shrink:0}
+.app-header .brand{font-size:17px;flex-shrink:0;gap:8px}
+.app-header .view-tabs{margin:0 auto;flex-shrink:0;gap:4px}
+.app-header .view-tabs button{font-size:11px;padding:7px 9px}
+.header-connection{display:flex;align-items:center;gap:8px;min-width:0;flex-shrink:1}
+.header-connection .connection-filter{margin:0;padding:0;background:none;display:flex;align-items:center;min-width:0;gap:6px}
+.header-connection .connection-filter label{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.header-connection select{width:250px;max-width:20vw;min-width:0;height:32px;padding:5px 8px;font-size:11px;text-overflow:ellipsis}
+.header-connection .connection-status{font-size:10px}
+.header-connection .monitor-hint{display:none}
+.header-connection .theme-toggle{margin:0;font-size:10px;padding:6px 7px;white-space:nowrap}
+.app-header>.controls{flex-shrink:0}
+@media(min-width:1200px) and (max-width:1599px){.header-connection .connection-status{font-size:0;gap:0}.header-connection .connection-status:before{width:7px;height:7px}.app-header .logged-user>span:last-child{max-width:75px}.app-header .brand{font-size:15px}.header-connection select{width:235px}.app-header{gap:9px}}
+@media(min-width:900px) and (max-width:1199px){.app-header{height:auto;min-height:88px;flex-wrap:wrap;padding:6px 14px;gap:6px 12px}.app-header .brand{order:0}.app-header .view-tabs{order:1;margin:0 auto}.app-header>.controls{order:2}.header-connection{order:3;flex-basis:100%;justify-content:flex-end}.header-connection select{width:320px;max-width:50vw}.header-connection .connection-status{font-size:10px}}
+@media(max-width:899px){.app-header{padding:6px 8px;gap:5px 8px;min-height:0}.app-header .brand{font-size:15px;order:0;flex:1}.app-header>.controls{order:1}.app-header .view-tabs{order:2;margin:0;flex-basis:100%;gap:4px}.header-connection{order:3;flex-basis:100%;gap:7px}.header-connection .connection-filter{flex:1}.header-connection select{max-width:none;width:100%;height:29px}.header-connection .connection-status{font-size:0;gap:0;max-width:none}.header-connection .theme-toggle{padding:5px;font-size:10px}.app-header .view-tabs button{padding:5px;font-size:10px}.app-notice{top:145px}}
