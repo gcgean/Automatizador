@@ -60,11 +60,18 @@ export class MetaConversions{
    if(lead.resultado==='ganho')throw fail('Este contato já possui uma venda confirmada.',409);
    if(body.status==='qualified'&&lead.resultado==='perdido')throw fail('Reabra o atendimento antes de qualificá-lo.',409);
    const at=new Date().toISOString();
-   const updated=await tx.updateLead(phone,{salesQualification:body.status,salesQualificationReason:body.status==='disqualified'?reason:false,salesQualificationNote:body.status==='disqualified'?body.note.trim():false,salesQualifiedAt:at,salesQualifiedBy:user?.name||user?.email||'Gestor',...(body.status==='disqualified'?{resultado:'perdido'}:{})});
+   const updated=await tx.updateLead(phone,{salesQualification:body.status,salesQualificationSource:'operator',salesQualificationReason:body.status==='disqualified'?reason:false,salesQualificationNote:body.status==='disqualified'?body.note.trim():false,salesQualifiedAt:at,salesQualifiedBy:user?.name||user?.email||'Gestor',...(body.status==='disqualified'?{resultado:'perdido'}:{})});
    if(body.status==='qualified')await this.queue(tx,id,phone,'QualifiedLead','qualified:'+phone,undefined,user);
    else await tx.pool.query("UPDATE meta_conversion_events SET status='cancelled',detail='Lead descartado antes do envio.' WHERE connection_id=$1 AND phone=$2 AND status='queued' AND event_name='QualifiedLead'",[id,phone]);
    await tx.audit('sales_qualification',user?.id||null,{phone,status:body.status,reason:reason||null});return updated;
   });
+ }
+ async businessCreated(tx,id,phone,dealId){
+  const lead=await tx.getLead(phone);
+  if(!lead||lead.optedOut||lead.salesQualification||['ganho','perdido'].includes(lead.resultado))return;
+  await tx.updateLead(phone,{salesQualification:'qualified',salesQualificationSource:'crm',salesQualifiedAt:new Date().toISOString(),salesQualifiedBy:'Confirmação do CRM',salesQualificationDealId:dealId});
+  await this.queue(tx,id,phone,'QualifiedLead','qualified:'+phone,undefined,null);
+  await tx.audit('sales_qualification_from_crm',null,{phone,dealId,status:'qualified'});
  }
  async purchase(id,phone,user){
   return this.store.scope(id).transaction(async tx=>{

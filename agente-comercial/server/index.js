@@ -423,7 +423,7 @@ async function main() {
   cadence?.bind(registry);media?.bind(registry);
   if(registry)await registry.init();
   const meta=registry?new MetaConversions(store,registry):null;
-  if(meta){await meta.init();registry.meta=meta;}
+  if(meta){await meta.init();registry.meta=meta;if(crm)crm.deals.meta=meta;}
   const simulation=registry?new SimulationService(store,config):null;
   if(simulation)await simulation.init();
   const learning=registry?new LearningService(store,registry):null;
