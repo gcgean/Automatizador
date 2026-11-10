@@ -11,6 +11,8 @@ import {UserAdministration} from './users.js';
 import {ConnectionRegistry} from './connections.js';
 import {LearningService} from './learning.js';
 import {evaluateLead} from './qualification.js';
+import {ConversationAccess} from './conversation-access.js';
+import {TagService} from './tags.js';
 import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
@@ -29,7 +31,7 @@ const MAX_BODY = 1024 * 1024;
 export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   return async function handler(req, res) {
-    let store=rootStore,inbox=baseInbox;
+    let store=rootStore,inbox=baseInbox,access=null,tags=null;
     const url = new URL(req.url, 'http://localhost');
     try {
       res.setHeader('Cache-Control', 'no-store');
@@ -110,11 +112,27 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const connectionId=url.searchParams.get('connection')||'default';
         if(!administrator&&!currentUser.connections.includes(connectionId))return send(res,403,'Você não tem acesso a esta conexão.');
         const runtime=await registry.runtime(connectionId);store=runtime.store;inbox=runtime.inbox;
+        access=new ConversationAccess(store,currentUser);tags=new TagService(store);
+        const phoneRoute=url.pathname.match(/^\/(?:leads|conversations)\/(\d+)(?:\/|$)/);
+        if(phoneRoute)await access.assert(phoneRoute[1]);
+        if(url.pathname.startsWith('/learning')&&!administrator)return send(res,403,'Análises de toda a conexão são exclusivas de administradores para preservar os atendimentos reservados.');
+        const bodyPhoneRoutes=['/calls/start','/calls/permission','/crm/retry','/crm/deals/review'];
+        if(req.method==='POST'&&bodyPhoneRoutes.includes(url.pathname)){const body=JSON.parse((await readBody(req)).toString());await access.assert(body.phone);}
+        if(req.method==='GET'&&['/calls/permission','/agenda/bookings'].includes(url.pathname)&&url.searchParams.get('phone'))await access.assert(url.searchParams.get('phone'));
+        const guardedCall=url.pathname.match(/^\/calls\/([a-f0-9-]{36})\//i);
+        if(guardedCall&&calling){const row=(await store.pool.query('SELECT phone FROM whatsapp_calls WHERE connection_id=$1 AND id=$2',[connectionId,guardedCall[1]])).rows[0];if(row)await access.assert(row.phone);}
+        const guardedReview=url.pathname.match(/^\/agenda\/review\/([a-f0-9-]{36})$/i);
+        if(guardedReview){const row=(await store.pool.query('SELECT phone FROM agenda_bookings WHERE connection_id=$1 AND id=$2',[connectionId,guardedReview[1]])).rows[0];if(row)await access.assert(row.phone);}
+        if(url.pathname==='/tags'&&req.method==='GET')return send(res,200,await tags.list());
+        if(url.pathname==='/tags'&&req.method==='POST')return send(res,201,await tags.create(JSON.parse((await readBody(req)).toString())));
+        const leadTags=url.pathname.match(/^\/leads\/(\d+)\/tags$/);
+        if(leadTags&&req.method==='POST'){const body=JSON.parse((await readBody(req)).toString());await tags.assign(leadTags[1],body.tagIds);await store.audit('lead_tags_updated',currentUser?.id||null,{phone:leadTags[1],tagIds:body.tagIds});return send(res,200,{ok:true});}
+
         if(url.pathname.startsWith('/calls')){
           if(!auth||!calling||!currentUser)return send(res,503,'Ligações exigem uma sessão autenticada e PostgreSQL.');
           if(url.pathname==='/calls/settings'&&req.method==='GET')return send(res,200,await calling.settings(connectionId));
           if(url.pathname==='/calls/settings'&&req.method==='POST')return send(res,200,await calling.configure(connectionId,JSON.parse((await readBody(req)).toString()).enabled));
-          if(url.pathname==='/calls'&&req.method==='GET')return send(res,200,await calling.list(connectionId,currentUser,url.searchParams.get('clientId')));
+          if(url.pathname==='/calls'&&req.method==='GET')return send(res,200,await access.filter(await calling.list(connectionId,currentUser,url.searchParams.get('clientId'))));
           if(url.pathname==='/calls/permission'&&req.method==='GET')return send(res,200,await calling.permission(connectionId,url.searchParams.get('phone')));
           const body=req.method==='POST'?JSON.parse((await readBody(req)).toString()):{};
           if(url.pathname==='/calls/permission'&&req.method==='POST')return send(res,200,await calling.requestPermission(connectionId,body.phone,currentUser));
@@ -144,12 +162,12 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           const body=JSON.parse((await readBody(req)).toString());if(body.attachmentId!==null){if(typeof body.attachmentId!=='string'||!/^[-a-f0-9]{36}$/i.test(body.attachmentId))return send(res,400,'Foto inválida.');const a=await media.get(body.attachmentId,connectionId);if(a.phone!==phone||a.kind!=='image'||a.state!=='ready')return send(res,400,'Foto incompatível com o contato.');}
           await store.updateLead(phone,{avatarAttachmentId:body.attachmentId||false});return send(res,200,{ok:true});
         }
-        const fileRoute=url.pathname.match(/^\/media\/([a-f0-9-]{36})$/i);if(media&&fileRoute&&req.method==='GET')return await media.serve(req,res,fileRoute[1],connectionId);
-        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){const lead=await store.getLead(uploadRoute[1]);if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
+        const fileRoute=url.pathname.match(/^\/media\/([a-f0-9-]{36})$/i);if(media&&fileRoute&&req.method==='GET'){await access.assert((await media.get(fileRoute[1],connectionId)).phone);return await media.serve(req,res,fileRoute[1],connectionId);}
+        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){const lead=await store.getLead(uploadRoute[1]);if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,operator:currentUser?{id:currentUser.id,name:currentUser.name||currentUser.email,administrator}:undefined,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='GET')return send(res,200,await cadence.settings(connectionId));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='POST')return send(res,200,await cadence.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         if(cadence&&url.pathname==='/cadence/templates'&&req.method==='GET')return send(res,200,await cadence.templates(connectionId));
-        if(cadence&&url.pathname==='/cadence/queue'&&req.method==='GET')return send(res,200,await cadence.list(connectionId));
+        if(cadence&&url.pathname==='/cadence/queue'&&req.method==='GET')return send(res,200,await access.filter(await cadence.list(connectionId)));
         if(crm&&url.pathname==='/crm/deals/settings'&&req.method==='GET')return send(res,200,await crm.deals.settings(connectionId));
         if(crm&&url.pathname==='/crm/deals/settings'&&req.method==='POST')return send(res,200,await crm.deals.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         if(crm&&url.pathname==='/crm/deals/catalog'&&req.method==='GET')return send(res,200,await crm.deals.catalog(connectionId));
@@ -157,7 +175,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const dealRoute=url.pathname.match(/^\/leads\/(\d+)\/deal(\/refresh|\/finish)?$/);if(crm&&dealRoute){if(req.method==='GET'&&!dealRoute[2])return send(res,200,await crm.deals.link(connectionId,dealRoute[1]));if(req.method==='POST'&&dealRoute[2]==='/refresh')return send(res,200,await crm.deals.refresh(connectionId,dealRoute[1]));if(req.method==='POST'&&dealRoute[2]==='/finish'){const result=await crm.deals.finish(connectionId,dealRoute[1],JSON.parse((await readBody(req)).toString()),currentUser?.id||null);if(cadence)await cadence.stop(connectionId,dealRoute[1],'Negócio encerrado no CRM');return send(res,200,result);}}
         if(crm&&url.pathname==='/crm/settings'&&req.method==='GET')return send(res,200,await crm.publicSettings(connectionId));
         if(crm&&url.pathname==='/crm/settings'&&req.method==='POST')return send(res,200,await crm.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
-        if(crm&&url.pathname==='/crm/sync'&&req.method==='GET')return send(res,200,await crm.list(connectionId));
+        if(crm&&url.pathname==='/crm/sync'&&req.method==='GET')return send(res,200,await access.filter(await crm.list(connectionId)));
         if(crm&&url.pathname==='/crm/retry'&&req.method==='POST'){const body=JSON.parse((await readBody(req)).toString());if(!/^\d{8,20}$/.test(body.phone||''))return send(res,400,'Telefone inválido.');return send(res,200,await crm.retry(connectionId,body.phone,currentUser?.id||null));}
         if(simulation&&url.pathname==='/simulation/state'&&req.method==='GET')return send(res,200,await simulation.state(url.searchParams.get('sessionId'),connectionId,currentUser?.id||'token-admin'));
         if(simulation&&url.pathname==='/simulation/crm-retry'&&req.method==='POST'){const body=JSON.parse((await readBody(req)).toString());if(!/^\d{10,15}$/.test(body.phone||''))return send(res,400,'Telefone inválido.');return send(res,200,await simulation.retryTestCrm(connectionId,body.phone,currentUser?.id));}
@@ -169,7 +187,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(agenda&&url.pathname==='/agenda/settings'&&req.method==='GET')return send(res,200,await agenda.publicSettings(connectionId));
         if(agenda&&url.pathname==='/agenda/settings'&&req.method==='POST')return send(res,200,await agenda.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         if(agenda&&url.pathname==='/agenda/catalog'&&req.method==='GET')return send(res,200,await agenda.catalog(connectionId));
-        if(agenda&&url.pathname==='/agenda/bookings'&&req.method==='GET')return send(res,200,await agenda.bookings(connectionId,url.searchParams.get('phone')));
+        if(agenda&&url.pathname==='/agenda/bookings'&&req.method==='GET')return send(res,200,await access.filter(await agenda.bookings(connectionId,url.searchParams.get('phone'))));
         const agendaReview=url.pathname.match(/^\/agenda\/review\/([a-f0-9-]{36})$/i);
         if(agenda&&agendaReview&&req.method==='POST')return send(res,200,await agenda.review(connectionId,agendaReview[1],JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         const qualification=url.pathname.match(/^\/leads\/(\d+)\/qualify$/);
@@ -195,8 +213,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(!authorized())return send(res,401,'unauthorized');
         if(!store.reports)return send(res,503,'Relatórios disponíveis com PostgreSQL.');
         const {from,to}=reportPeriod(url);
-        if(url.pathname==='/reports')return send(res,200,await store.reports(from,to));
-        const rows=await store.exportMessages(from,to);
+        if(url.pathname==='/reports')return send(res,200,await store.reports(from,to,currentUser));
+        const rows=await store.exportMessages(from,to,currentUser);
         if(rows.length>100000)return send(res,422,'Reduza o período para exportar até 100.000 mensagens.');
         await store.audit('messages_exported',currentUser?.id||null,{from,to,rows:rows.length});
         const csvCell=value=>'"'+String(value??'').replace(/^[=+\-@\t\r]/,"'$&").replaceAll('"','""')+'"';
@@ -207,12 +225,13 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
 
       if (req.method === 'GET' && url.pathname === '/leads') {
         if (!authorized()) return send(res, 401, 'unauthorized');
-        return send(res, 200, await store.listLeads());
+        const leads=access?await access.leads():await store.listLeads();
+        return send(res,200,tags?await tags.decorate(leads):leads);
       }
 
       if (req.method === 'GET' && url.pathname === '/inbox') {
         if (!authorized()) return send(res, 401, 'unauthorized');
-        return send(res, 200, inbox?.jobs || {});
+        const entries=Object.entries(inbox?.jobs||{});const allowed=access?await access.filter(entries,entry=>entry[1].message.from):entries;return send(res,200,Object.fromEntries(allowed));
       }
 
       if (req.method === 'POST' && url.pathname === '/inbox/resolve') {
@@ -223,6 +242,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           return send(res, 400, 'Informe id e resolution=handled_manually após conferir o atendimento.');
         }
         const key = Buffer.from(body.id).toString('base64url');
+        if(access&&inbox.jobs[key])await access.assert(inbox.jobs[key].message.from);
         const resolved = await inbox.update(jobs => {
           if (jobs[key]?.status !== 'attention') return false;
           jobs[key].status = 'done';
@@ -270,8 +290,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if (config.panelOnly || !inbox) return send(res, 503, 'Atendimento ainda não configurado.');
         const body = JSON.parse((await readBody(req)).toString('utf8'));
         if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 4000 || !/^[a-zA-Z0-9-]{16,80}$/.test(body.requestId || '')) return send(res, 400, 'Mensagem ou identificador inválido.');
-        const phone = replyRoute[1];
-        if ((await store.listLeads())[phone]?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
+        const phone = replyRoute[1],currentLead=(await store.listLeads())[replyRoute[1]];
+        if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
         if (!events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');
         if(body.sign!==undefined&&typeof body.sign!=='boolean')return send(res,400,'Opção de assinatura inválida.');
@@ -280,8 +300,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const sign=body.sign??currentUser?.signature_default??false;
         const actorName=String(currentUser?.name||'Equipe Command').replace(/[\r\n*_~`]/g,'').trim().slice(0,100);
         const text=(sign?'*'+actorName+':*\n':'')+body.text.trim();if(text.length>4096)return send(res,400,'Mensagem com assinatura excede o limite permitido.');
-        await store.updateLead(phone, {status: 'encaminhado',humanControlId:crypto.randomUUID(),...(currentUser?{assignedUserId:currentUser.id,assignedUserName:currentUser.name||currentUser.email}:{})});
-        await inbox.accept({id:'manual-'+body.requestId, from:phone, text, manual:true,operator:currentUser?{id:currentUser.id,name:actorName,signed:sign}:undefined});
+        await store.updateLead(phone, {status: 'encaminhado',humanControlId:crypto.randomUUID(),...(currentUser&&!currentLead?.assignedUserId?{assignedUserId:currentUser.id,assignedUserName:currentUser.name||currentUser.email}:{})});
+        await inbox.accept({id:'manual-'+body.requestId, from:phone, text, manual:true,operator:currentUser?{id:currentUser.id,name:actorName,signed:sign,administrator}:undefined});
         return send(res, 202, {queued:true});
       }
 
@@ -333,8 +353,10 @@ export function reportPeriod(url){
   return {from:from.toISOString(),to:to.toISOString()};
 }
 
+const requestBodies=new WeakMap();
 function readBody(req) {
-  return new Promise((resolve, reject) => {
+  if(requestBodies.has(req))return requestBodies.get(req);
+  const pending=new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on('data', chunk => {
@@ -345,6 +367,7 @@ function readBody(req) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+  requestBodies.set(req,pending);return pending;
 }
 
 async function main() {

@@ -48,7 +48,7 @@ export class CallingService {
   return rows.map(r=>this.public(r,actor,clientId));
  }
  public(r,actor,clientId){const mine=r.operator_id===actor.id&&r.client_id===clientId;return {id:r.id,phone:r.phone,direction:r.direction,state:r.state,operatorName:r.operator_name,mine,createdAt:r.created_at,updatedAt:r.updated_at,...(mine&&!ended.has(r.state)?{session:r.remote_session}:{})};}
- async human(connection,to,actor){await this.store.scope(connection).updateLead(to,{status:'encaminhado',humanControlId:crypto.randomUUID(),assignedUserId:actor.id,assignedUserName:actor.name||actor.email});}
+ async human(connection,to,actor){const scoped=this.store.scope(connection),lead=await scoped.getLead(to);await scoped.updateLead(to,{status:'encaminhado',humanControlId:crypto.randomUUID(),...(!lead?.assignedUserId?{assignedUserId:actor.id,assignedUserName:actor.name||actor.email}:{})});}
  async start(connection,body,actor){
   if(!uuid(body.clientId)||!uuid(body.requestId))throw fail('Identificador de ligação inválido.');validateSession(body.session,'offer');await this.contact(connection,body.phone);
   return this.store.transaction(async tx=>{

@@ -102,6 +102,7 @@ export class SalesAgent {
     const suppressed=async()=>{const current=(await this.store.listLeads())[from];return automationClosed(current)||current?.humanControlId!==controlBefore;};
     const conv = await this.store.getConversation(from);
     if (conv.processedIds.includes(id)) return null;
+    if(manual&&operator&&!operator.administrator){const assigned=(await this.store.listLeads())[from]?.assignedUserId;if(assigned&&assigned!==operator.id)throw new Error('Envio cancelado: atendimento transferido para outro responsável.');}
     if (manual) {
       if ((await this.store.listLeads())[from]?.optedOut) throw new Error('Contato bloqueado por descadastro.');
       const events = await this.store.getEvents(from);

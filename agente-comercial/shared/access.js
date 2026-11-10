@@ -1,5 +1,5 @@
 export const PERMISSION_SECTIONS=[
- {name:'Atendimento',items:[['conversations.view','Ver conversas e contatos'],['messages.send','Enviar mensagens de texto'],['calls.use','Fazer e receber ligações WhatsApp'],['media.send','Enviar áudios e anexos'],['signature.choose','Escolher enviar com ou sem assinatura'],['conversations.automation','Pausar e retomar a IA'],['conversations.transfer','Transferir para atendente humano'],['leads.manage','Classificar e encerrar leads'],['contacts.block','Bloquear contatos'],['photos.manage','Cadastrar foto do contato'],['queue.resolve','Resolver pendências de envio'],['deals.manage','Atualizar e fechar negócios no CRM']]},
+ {name:'Atendimento',items:[['conversations.view','Ver conversas e contatos'],['messages.send','Enviar mensagens de texto'],['calls.use','Fazer e receber ligações WhatsApp'],['media.send','Enviar áudios e anexos'],['signature.choose','Escolher enviar com ou sem assinatura'],['conversations.automation','Pausar e retomar a IA'],['conversations.transfer','Transferir para atendente humano'],['leads.manage','Classificar leads, etiquetas e encerramentos'],['contacts.block','Bloquear contatos'],['photos.manage','Cadastrar foto do contato'],['queue.resolve','Resolver pendências de envio'],['deals.manage','Atualizar e fechar negócios no CRM']]},
  {name:'Análise',items:[['reports.view','Ver relatórios'],['reports.export','Exportar mensagens'],['learning.manage','Analisar e aprovar melhorias da IA']]},
  {name:'Configurações',items:[['ai.manage','Escolher provedor de IA'],['agenda.manage','Configurar agenda e conferir reservas'],['crm.manage','Configurar CRM e conferir sincronização'],['cadence.manage','Configurar cadência'],['simulation.use','Testar IARA e integrações']]}
 ];
@@ -7,6 +7,8 @@ export const ALL_PERMISSIONS=PERMISSION_SECTIONS.flatMap(s=>s.items.map(i=>i[0])
 export const LEGACY_PERMISSIONS={viewer:['conversations.view','reports.view','reports.export'],operator:['calls.use','conversations.view','messages.send','media.send','signature.choose','conversations.automation','conversations.transfer','leads.manage','contacts.block','photos.manage','queue.resolve','deals.manage','reports.view','reports.export']};
 export const can=(user,key)=>user?.role==='admin'||(user?.permissions||LEGACY_PERMISSIONS[user?.role]||[]).includes(key);
 export function requiredPermission(path,method){
+ if(path==='/tags')return method==='GET'?'conversations.view':'leads.manage';
+ if(/^\/leads\/\d+\/tags$/.test(path))return 'leads.manage';
  if(path.startsWith('/calls'))return path==='/calls/settings'&&method==='POST'?'admin':'calls.use';
  if(path.startsWith('/reports'))return path.endsWith('.csv')?'reports.export':'reports.view';
  if(/^\/(users|access-groups)(\/|$)/.test(path))return 'admin';
