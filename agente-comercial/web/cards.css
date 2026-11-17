@@ -1,0 +1,38 @@
+/* Aba Cards: atendimentos em grade com a conversa ao lado */
+.lead-toolbar{display:contents}
+.inbox-columns.cards-columns{grid-template-columns:minmax(0,1fr) minmax(400px,36%)}
+.cards-columns .lead-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;flex-shrink:0}
+.cards-columns .lead-toolbar .contact-groups{display:flex;padding:0;flex:0 1 auto}
+.cards-columns .lead-toolbar .contact-groups button{flex:0 0 auto;padding:5px 8px}
+.cards-columns .lead-toolbar .search{margin:0;flex:1 1 180px;max-width:260px}
+.cards-columns .lead-toolbar .lead-filters{margin:0}
+.cards-columns .lead-toolbar .lead-filters select,.cards-columns .lead-toolbar .tag-filter{width:auto;max-width:170px;margin:0;min-height:30px;font-size:11px}
+.contact-list.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:8px;padding:8px 10px 12px;align-content:start}
+.lead-card{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;min-width:0;min-height:156px;padding:8px 8px 0;border:1px solid #dbe3ec;border-top:3px solid var(--connection-color,#087bf2);border-radius:8px;background:#fff;color:#102344;text-align:left;font-weight:400;white-space:normal;overflow:hidden;cursor:pointer}
+.lead-card:hover{filter:none;background:#f4f8ff}
+.lead-card.selected{outline:2px solid #00a884;outline-offset:-1px}
+.lead-card.has-pending{border-color:#25d366;border-top-color:var(--connection-color,#087bf2)}
+.lead-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;min-width:0}
+.lead-card-top strong{font-size:10.5px;font-weight:600;text-transform:uppercase;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.lead-card.has-pending .lead-card-top strong{font-weight:800}
+.lead-card .unread-count{flex-shrink:0;box-shadow:0 0 0 3px #25d36633}
+.lead-card-protocol{text-align:center;font-size:17px;font-weight:700;line-height:1.1}
+.lead-card-status{display:flex;justify-content:center;align-items:center;gap:6px;min-width:0}
+.lead-card-status .tag{font-size:9px;padding:1px 6px}
+.lead-card-preview{font-size:10px;line-height:1.3;opacity:.75;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em;word-break:break-word}
+.lead-card.has-pending .lead-card-preview{opacity:1;font-weight:500}
+.lead-card-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;max-height:38px;overflow:hidden}
+.lead-card-chips .integration-chip{font-size:9px;padding:1px 4px}
+.lead-card-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:auto -8px 0;padding:4px 8px;background:#5f6b76;color:#fff;font-size:9px;font-weight:600;text-transform:uppercase}
+.lead-card-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lead-card-foot time{flex-shrink:0}
+.lead-card.has-pending .lead-card-foot time{color:#7dffb8}
+.chat-dark .lead-card{background:#202c33;border-color:var(--chat-line);color:var(--chat-text)}
+.chat-dark .lead-card:hover{background:#2a3942}
+.chat-dark .lead-card.has-pending{border-color:#25d366;border-top-color:var(--connection-color,#087bf2)}
+.chat-dark .lead-card-foot{background:#2a3942}
+@media(max-width:1100px){.inbox-columns.cards-columns{grid-template-columns:minmax(0,1fr) minmax(340px,42%)}}
+@media(max-width:760px){.contact-list.card-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}.cards-columns .lead-toolbar .search{max-width:none}}
+.cards-columns .detail-head .controls button>span{display:none}
+.cards-columns .detail-head .controls button{padding:7px 9px}
+.cards-columns .detail-head .controls{gap:4px;flex-wrap:nowrap}

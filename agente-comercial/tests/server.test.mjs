@@ -55,6 +55,8 @@ test('extrai só mensagens do número comercial', () => {
   const msgs = extractMessages(payload([{id: 'm1', from: '5585999990000', type: 'text', text: {body: 'Oi'}}]), PHONE_ID);
   assert.deepEqual(msgs, [{id: 'm1', from: '5585999990000', name: 'Ana', type: 'text', text: 'Oi'}]);
   assert.deepEqual(extractMessages(payload([{id: 'm2', from: '1', type: 'text', text: {body: 'x'}}], 'numero-suporte'), PHONE_ID), []);
+  assert.equal(extractMessages(payload([{id: 'r1', from: '5585999990000', type: 'reaction', reaction: {message_id: 'wamid.x', emoji: '👍'}}]), PHONE_ID)[0].text, '[O cliente reagiu com 👍 a uma mensagem.]');
+  assert.equal(extractMessages(payload([{id: 'r2', from: '5585999990000', type: 'reaction', reaction: {message_id: 'wamid.x'}}]), PHONE_ID)[0].text, '[O cliente removeu a reação de uma mensagem.]');
   assert.match(extractMessages(payload([{id: 'm3', from: '1', type: 'audio'}]), PHONE_ID)[0].text, /áudio/);
 });
 

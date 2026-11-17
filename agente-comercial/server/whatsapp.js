@@ -37,6 +37,7 @@ function describe(msg) {
     case 'video': return '[Vídeo recebido]';
     case 'sticker': return '[O cliente enviou uma figurinha.]';
     case 'location': return '[O cliente enviou uma localização.]';
+    case 'reaction': return msg.reaction?.emoji ? `[O cliente reagiu com ${msg.reaction.emoji} a uma mensagem.]` : '[O cliente removeu a reação de uma mensagem.]';
     default: return `[O cliente enviou uma mensagem do tipo ${msg.type}.]`;
   }
 }
