@@ -102,6 +102,17 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(url.pathname==='/push/unsubscribe'&&req.method==='POST')return send(res,200,await push.unsubscribe(currentUser,body.endpoint));
         return send(res,404,'not found');
       }
+      if(url.pathname==='/me/inbox-connections'){
+        if(!currentUser||!registry)return send(res,401,'unauthorized');
+        if(req.method!=='POST')return send(res,405,'Método não permitido.');
+        const body=JSON.parse((await readBody(req)).toString());
+        if(!Array.isArray(body.connections)||body.connections.length>200||body.connections.some(id=>typeof id!=='string'))return send(res,400,'Lista de números inválida.');
+        const available=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id))).map(c=>c.id);
+        const ids=[...new Set(body.connections)].filter(id=>available.includes(id));
+        if(!ids.length)return send(res,400,'Selecione ao menos um número.');
+        await rootStore.pool.query("UPDATE users SET inbox_connections=jsonb_set(COALESCE(inbox_connections,'{}'::jsonb),ARRAY[$2::text],$3::jsonb) WHERE id=$1",[currentUser.id,companyId,JSON.stringify(ids)]);
+        return send(res,200,{connections:ids});
+      }
       if(url.pathname==='/business-hours'||url.pathname==='/handoff/presence'||url.pathname.startsWith('/notifications')){
         if(!currentUser||!routing)return send(res,401,'unauthorized');
         if(url.pathname==='/business-hours'){if(!administrator)return send(res,403,'Somente administradores configuram o expediente.');if(req.method==='GET')return send(res,200,await routing.settings(companyId));if(req.method==='POST')return send(res,200,await routing.save(currentUser,JSON.parse((await readBody(req)).toString())));}

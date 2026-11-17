@@ -1,1 +1,16 @@
-.department-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.department-card{display:grid;gap:8px;padding:16px;border-bottom:1px solid var(--border,#cbd5e1)}.department-card p{margin:0}.ticket-history{padding:10px 16px;border-bottom:1px solid var(--border,#cbd5e1);background:var(--panel,#fff);color:var(--text,#172b3a)}.ticket-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.ticket-heading label{display:flex;align-items:center;gap:8px;font-size:12px}.ticket-heading select{max-width:350px}.ticket-history details{font-size:12px;margin-top:8px}.ticket-history li{padding:4px}.ticket-history p{font-size:12px}.department-grid fieldset{display:grid;gap:8px;padding:12px}@media(max-width:760px){.department-grid{grid-template-columns:1fr}.ticket-heading{align-items:stretch;flex-direction:column}.ticket-heading label{flex-direction:column;align-items:stretch}.ticket-heading select{max-width:100%}}
+.department-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.department-card{display:grid;gap:8px;padding:16px;border-bottom:1px solid var(--border,#cbd5e1)}.department-card p{margin:0}.department-grid fieldset{display:grid;gap:8px;padding:12px}@media(max-width:760px){.department-grid{grid-template-columns:1fr}.ticket-history select{max-width:120px}}
+
+.ticket-history{position:relative;display:flex;align-items:center;gap:4px;min-width:0;flex-shrink:1}
+.ticket-history select{font-size:10px;padding:2px 4px;height:22px;max-width:190px;min-width:0;border:1px solid transparent;border-radius:6px;background:transparent;color:inherit;opacity:.8;cursor:pointer}
+.ticket-history select:hover,.ticket-history select:focus{opacity:1;border-color:currentColor}
+.ticket-history select option{color:#102344;background:#fff}
+.ticket-history.viewing-other select{opacity:1;border-color:#e0a800;color:#e0a800}
+.ticket-error{color:#d33;font-weight:700;font-size:11px}
+.ticket-info{position:relative}
+.ticket-info summary{list-style:none;display:flex;align-items:center;cursor:pointer;opacity:.6;padding:2px}
+.ticket-info summary::-webkit-details-marker{display:none}
+.ticket-info summary:hover,.ticket-info[open] summary{opacity:1}
+.ticket-popover{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:min(360px,80vw);max-height:260px;overflow:auto;padding:10px 12px;border-radius:8px;font-size:12px;background:#fff;color:#102344;border:1px solid #d6dee8;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.ticket-popover p{margin:6px 0 0;font-size:12px}.ticket-popover ol{margin:6px 0 0;padding-left:18px}.ticket-popover li{padding:2px 0}
+.chat-dark .ticket-popover{background:#233138;color:var(--chat-text);border-color:var(--chat-line)}
+.chat-dark .ticket-history select option{color:var(--chat-text);background:#233138}
