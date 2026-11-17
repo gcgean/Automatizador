@@ -25,7 +25,7 @@ export function CallingProvider({connectionId,connections,user,onActive,children
   const test=await navigator.mediaDevices.getUserMedia({audio:true});test.getTracks().forEach(t=>t.stop());ring.current??=new AudioContext();await ring.current.resume();remember(connection,true);
  }
  async function reloadSettings(connection=selectedConnection.current){const value=await api(connection,'/calls/settings');if(live.current&&selectedConnection.current===connection)setSettings(value);return value;}
- useEffect(()=>{setSettings(null);setOnline(remembered(user,connectionId));if(enabled)reloadSettings(connectionId).catch(e=>{if(live.current&&selectedConnection.current===connectionId)setError(e.message);});},[connectionId,enabled]);
+ useEffect(()=>{setSettings(null);setError('');setOnline(remembered(user,connectionId));if(enabled&&connectionId)reloadSettings(connectionId).catch(e=>{if(live.current&&selectedConnection.current===connectionId)setError(e.message);});},[connectionId,enabled]);
  useEffect(()=>{
   live.current=true;
   if(!enabled)return;

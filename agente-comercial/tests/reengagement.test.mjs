@@ -1,0 +1,27 @@
+import test from 'node:test';import assert from 'node:assert/strict';import crypto from 'node:crypto';import {Pool} from 'pg';import {fileURLToPath} from 'node:url';
+import {PgStore} from '../server/pg-store.js';import {PasswordAuth} from '../server/auth.js';import {loadConfig} from '../server/config.js';import {ConnectionRegistry} from '../server/connections.js';import {CadenceService} from '../server/cadence.js';import {Reengagement} from '../server/reengagement.js';
+test('retomada manual: modelo aprovado, autorização, envio único e proteção da janela/recusa',{skip:!process.env.TEST_DATABASE_URL},async()=>{
+ const url=new URL(process.env.TEST_DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'5548');const db=new Pool({connectionString:url.toString()}),schema='reengage_'+crypto.randomBytes(8).toString('hex');await db.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);const store=new PgStore(url.toString(),'.');
+ try{await store.init();const config={...loadConfig({AI_PROVIDER:'deepseek',WHATSAPP_APP_SECRET:'a'.repeat(32),WHATSAPP_ACCESS_TOKEN:'test-only',WHATSAPP_WABA_ID:'123456789',CONNECTIONS_ENCRYPTION_KEY:'b'.repeat(64)}),adminEmail:'owner@example.com',adminSetupToken:'qa',publicUrl:'http://127.0.0.1',scriptFile:fileURLToPath(new URL('../server/roteiro-comercial.md',import.meta.url))};
+  const sent=[],model={name:'atendimento_retorno_cs_v2',status:'APPROVED',category:'MARKETING',language:'pt_BR',components:[{type:'BODY',text:'Podemos retomar nossa conversa?'}]};
+  const parameterized={name:'lembrete',status:'APPROVED',category:'UTILITY',language:'pt_BR',components:[{type:'BODY',text:'Olá {{1}}, reunião em {{2}}.'}]};
+  const fetchImpl=async(url,options)=>String(url).includes('message_templates')?{ok:true,json:async()=>({data:[model,parameterized]})}:{ok:true,json:async()=>{sent.push(JSON.parse(options.body));return {messages:[{id:'wamid.test'}]};}};
+  const auth=new PasswordAuth(store,config);await auth.init();const actor=await auth.identity((await store.pool.query("SELECT id FROM users WHERE email='owner@example.com'")).rows[0].id);
+  const cadence=new CadenceService(store,config,{fetchImpl}),registry=new ConnectionRegistry(store,config,{fetchImpl,cadence}),service=new Reengagement(store,registry,cadence,auth);registry.reengagement=service;cadence.bind(registry);await registry.init();
+  const phone='5511999900011';await store.updateLead(phone,{nome:'Contato fictício'});await store.recordEvent({id:'old-in',phone,direction:'in',text:'Podem me chamar.',at:new Date(Date.now()-48*3600000).toISOString()});
+  const preview=await service.preview('default',phone,actor);assert.equal(preview.body,'Podemos retomar nossa conversa?');assert.equal(preview.templates.length,2);
+  const body={name:model.name,language:model.language,requestId:crypto.randomUUID(),consentConfirmed:true};
+  await assert.rejects(service.enqueue('default',phone,{...body,consentConfirmed:false},actor),/autorização/);
+  await service.enqueue('default',phone,body,actor);const runtime=await registry.runtime('default');await runtime.inbox.drain();assert.equal(sent.length,1);assert.equal(sent[0].type,'template');assert.equal(sent[0].template.name,model.name);
+  await service.enqueue('default',phone,body,actor);await runtime.inbox.drain();assert.equal(sent.length,1);assert.notEqual((await store.getLead(phone)).cadenceConsent,true);
+  const parameters={name:'lembrete',language:'pt_BR',requestId:crypto.randomUUID(),consentConfirmed:true,values:{'body:1':'Ana','body:2':'16/11 às 15h'}};
+  await assert.rejects(service.enqueue('default',phone,{...parameters,values:{}},actor),/Preencha/);
+  await assert.rejects(service.enqueue('default',phone,{...parameters,name:'modelo_de_outra_waba'},actor),/WABA/);
+  await service.enqueue('default',phone,parameters,actor);await runtime.inbox.drain();assert.equal(sent.length,2);assert.equal(sent[1].template.components[0].parameters[0].text,'Ana');assert.equal((await store.getEvents(phone)).filter(e=>e.direction==='out').at(-1).text,'Olá Ana, reunião em 16/11 às 15h.');
+  const changed={...parameters,requestId:crypto.randomUUID(),fingerprint:preview.templates.find(t=>t.name==='lembrete').fingerprint};parameterized.components[0].text='Mensagem alterada {{1}} {{2}}';await assert.rejects(service.enqueue('default',phone,changed,actor),/mudou/);
+  const withdrawn={...parameters,requestId:crypto.randomUUID()};await service.enqueue('default',phone,withdrawn,actor);parameterized.status='PAUSED';await runtime.inbox.drain();assert.equal(sent.length,2);assert.ok(Object.values(runtime.inbox.jobs).some(j=>j.status==='attention'&&j.error.includes('WABA')));
+  await store.recordEvent({id:'new-in',phone,direction:'in',text:'Olá novamente.'});assert.equal((await service.preview('default',phone,actor)).windowOpen,true);await assert.rejects(service.enqueue('default',phone,{...body,requestId:crypto.randomUUID()},actor),/janela está aberta/);
+  await store.updateLead(phone,{optedOut:true});await assert.rejects(service.preview('default',phone,actor),/bloqueado/);
+  assert.equal(sent.length,2);
+ }finally{await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
+});

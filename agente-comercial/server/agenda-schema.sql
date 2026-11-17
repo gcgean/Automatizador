@@ -22,3 +22,5 @@ CREATE TABLE IF NOT EXISTS agenda_bookings (
  UNIQUE(connection_id,inbound_id),UNIQUE(offer_id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS agenda_one_uncertain_idx ON agenda_bookings(connection_id,phone) WHERE status IN ('sending','uncertain');
+ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS cancellation_requested_at timestamptz;
+ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS cancellation_message_id text;

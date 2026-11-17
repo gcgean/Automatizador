@@ -12,15 +12,16 @@ export class TagService{
   catch(e){if(e.code==='23505')throw fail('Já existe uma etiqueta com esse nome.',409);throw e;}
  }
  async assign(phone,ids){
-  if(!Array.isArray(ids)||ids.length>10||ids.some(id=>typeof id!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)))throw fail('Selecione até 10 etiquetas válidas.');
+  if(!Array.isArray(ids)||ids.length>11||ids.some(id=>typeof id!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)))throw fail('Selecione até 10 etiquetas válidas.');
   ids=[...new Set(ids)];
   return this.store.transaction(async tx=>{
    const lead=(await tx.pool.query('SELECT 1 FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[this.connection,phone])).rowCount;if(!lead)throw fail('Contato não encontrado.',404);
+   const automatic=(await tx.pool.query("SELECT tag_id FROM lead_tags WHERE connection_id=$1 AND phone=$2 AND source='cadence_no_response'",[this.connection,phone])).rows.map(r=>r.tag_id);if(ids.filter(id=>!automatic.includes(id)).length>10)throw fail('Selecione até 10 etiquetas válidas.');
    if((await tx.pool.query('SELECT id FROM contact_tags WHERE connection_id=$1 AND id=ANY($2::uuid[])',[this.connection,ids])).rowCount!==ids.length)throw fail('Escolha etiquetas desta conexão.');
    await tx.pool.query("INSERT INTO lead_tag_suppressions(connection_id,phone,tag_id) SELECT connection_id,phone,tag_id FROM lead_tags WHERE connection_id=$1 AND phone=$2 AND source='ai_interest' AND NOT(tag_id=ANY($3::uuid[])) ON CONFLICT DO NOTHING",[this.connection,phone,ids]);
    await tx.pool.query('DELETE FROM lead_tag_suppressions WHERE connection_id=$1 AND phone=$2 AND tag_id=ANY($3::uuid[])',[this.connection,phone,ids]);
    await tx.pool.query('DELETE FROM lead_tags WHERE connection_id=$1 AND phone=$2',[this.connection,phone]);
-   if(ids.length)await tx.pool.query('INSERT INTO lead_tags(connection_id,phone,tag_id) SELECT $1,$2,unnest($3::uuid[])',[this.connection,phone,ids]);
+   if(ids.length)await tx.pool.query("INSERT INTO lead_tags(connection_id,phone,tag_id,source) SELECT $1,$2,id,CASE WHEN id=ANY($4::uuid[]) THEN 'cadence_no_response' ELSE 'manual' END FROM unnest($3::uuid[]) AS id",[this.connection,phone,ids,automatic]);
    return {ok:true};
   });
  }
@@ -44,7 +45,7 @@ export class TagService{
  }
  async decorate(leads){
   const phones=Object.keys(leads);if(!phones.length)return leads;
-  const rows=(await this.store.pool.query('SELECT lt.phone,t.id,t.name,t.color FROM lead_tags lt JOIN contact_tags t ON t.connection_id=lt.connection_id AND t.id=lt.tag_id WHERE lt.connection_id=$1 AND lt.phone=ANY($2::text[]) ORDER BY lower(t.name),t.id',[this.connection,phones])).rows;
+  const rows=(await this.store.pool.query('SELECT lt.phone,t.id,t.name,t.color,lt.source FROM lead_tags lt JOIN contact_tags t ON t.connection_id=lt.connection_id AND t.id=lt.tag_id WHERE lt.connection_id=$1 AND lt.phone=ANY($2::text[]) ORDER BY lower(t.name),t.id',[this.connection,phones])).rows;
   const tags=new Map();for(const {phone,...tag} of rows){if(!tags.has(phone))tags.set(phone,[]);tags.get(phone).push(tag);}
   return Object.fromEntries(Object.entries(leads).map(([phone,lead])=>[phone,{...lead,tags:tags.get(phone)||[]}]));
  }

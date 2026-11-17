@@ -59,3 +59,11 @@
 @media(min-width:1200px) and (max-width:1599px){.header-connection .connection-status{font-size:0;gap:0}.header-connection .connection-status:before{width:7px;height:7px}.app-header .logged-user>span:last-child{max-width:75px}.app-header .brand{font-size:15px}.header-connection select{width:235px}.app-header{gap:9px}}
 @media(min-width:900px) and (max-width:1199px){.app-header{height:auto;min-height:88px;flex-wrap:wrap;padding:6px 14px;gap:6px 12px}.app-header .brand{order:0}.app-header .view-tabs{order:1;margin:0 auto}.app-header>.controls{order:2}.header-connection{order:3;flex-basis:100%;justify-content:flex-end}.header-connection select{width:320px;max-width:50vw}.header-connection .connection-status{font-size:10px}}
 @media(max-width:899px){.app-header{padding:6px 8px;gap:5px 8px;min-height:0}.app-header .brand{font-size:15px;order:0;flex:1}.app-header>.controls{order:1}.app-header .view-tabs{order:2;margin:0;flex-basis:100%;gap:4px}.header-connection{order:3;flex-basis:100%;gap:7px}.header-connection .connection-filter{flex:1}.header-connection select{max-width:none;width:100%;height:29px}.header-connection .connection-status{font-size:0;gap:0;max-width:none}.header-connection .theme-toggle{padding:5px;font-size:10px}.app-header .view-tabs button{padding:5px;font-size:10px}.app-notice{top:145px}}
+
+.learning-opportunity{border-top:1px solid var(--border,#637889);padding-top:12px;margin-top:16px;overflow-wrap:anywhere}.learning-opportunity h4{margin:0}.learning-opportunity .report-heading{flex-wrap:wrap;gap:8px}
+
+.company-selector label{display:flex;gap:6px;align-items:center;font-size:12px}.company-selector select{max-width:210px}.company-row{padding:14px 0;border-bottom:1px solid #cad5e2;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}.company-row p{margin:6px 0}.company-row strong{overflow-wrap:anywhere}
+
+.reengagement-panel{padding:14px 18px;background:#eef5ff;border-top:1px solid #c5d8f0;color:#193759}.reengagement-panel p{margin:6px 0 12px}.reengagement-preview .check-line{display:flex;align-items:flex-start;gap:8px;margin:12px 0}
+
+.cancellation-banner{background:#fff4df;color:#805500;border-color:#e8c889}

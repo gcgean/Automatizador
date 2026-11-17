@@ -1,34 +1,19 @@
-# Dependencias e arquivos gerados
 node_modules/
 dist/
-coverage/
-test-results/
-__pycache__/
-*.py[cod]
-*.log
-
-# Configuracoes e credenciais locais
 .env
+*.log
+test-results/
+.nexo-test-profile/
+.nexo-profile/
+conversas/
+server/.env
+server/.env.cilos
+server/data/
+
+# Credenciais de conexoes adicionais e arquivos locais
 .env.*
 !.env.example
 !.env.*.example
-*.pem
-*.key
-tunnel-credentials.json
-
-# Sessoes, conversas, bancos e backups locais
-.nexo-profile/
-.nexo-test-profile/
-conversas/
-data/
-backups/
-*.dump
-ACESSO-ADMIN.txt
-ACESSO-ADMIN.html
-
-# Arquivos do sistema
-.DS_Store
-Thumbs.db
-
-# Documento local de transferencia com PIN
+__pycache__/
+*.py[cod]
 /NUMERO-CILOS.md

@@ -11,13 +11,40 @@ const validHour=value=>/^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 const minutes=value=>Number(value.slice(0,2))*60+Number(value.slice(3));
 const label=slot=>new Intl.DateTimeFormat('pt-BR',{timeZone:TZ,weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(slot.data+'T12:00:00Z'))+' às '+slot.horaInicio+' com '+slot.tecnicoNome;
 const slotTime=slot=>Date.parse(slot.data+'T'+slot.horaInicio+':00-03:00');
+const selectionToken=messageId=>crypto.createHash('sha256').update(messageId).digest('hex').slice(0,24);
+const slotTitle=slot=>slot.data.slice(8,10)+'/'+slot.data.slice(5,7)+' às '+slot.horaInicio;
+export function appointmentOptions(offerId,options){
+ const choices=options.map(o=>({id:'agenda:pick:'+offerId+':'+o.id,title:slotTitle(o)}));
+ const body={text:'Escolha um horário para sua apresentação (horário de Brasília). O horário só será reservado após sua confirmação.'};
+ if(choices.length<=3)return {type:'button',body,action:{buttons:choices.map(reply=>({type:'reply',reply}))}};
+ return {type:'list',body,action:{button:'Ver horários',sections:[{title:'Horários disponíveis',rows:choices.map((c,i)=>({...c,description:options[i].tecnicoNome.slice(0,72)}))}]}};
+}
+const confirmationButtons=(offerId,messageId,reply)=>({type:'button',body:{text:reply},action:{buttons:[{type:'reply',reply:{id:'agenda:confirm:'+offerId+':'+selectionToken(messageId),title:'Confirmar'}},{type:'reply',reply:{id:'agenda:other:'+offerId+':'+selectionToken(messageId),title:'Outro horário'}}]}});
 export const confirmsAppointment=text=>/^(?:(?:sim[, ]+)?(?:confirmar|confirma|confirmo|confirmado|sim|pode (?:confirmar|agendar|marcar)|sim,? pode (?:confirmar|agendar|marcar))(?:[, ]+(?:sim|por favor))?)$/.test(normalize(text).replace(/[.!?]+$/,''));
-export function claimsAppointment(text){const s=normalize(text);return /(?:apresentacao|agendamento|reuniao|horario|segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|\d{1,2}:\d{2})/.test(s)&&/(?:confirmad[oa]|agendad[oa]|marcad[oa]|reservad[oa]|registrad[oa]|agendei|reservei|marquei|registrei|nos vemos|ate (?:amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo))/.test(s)&&!/(?:(?:nao|ainda nao)\s+(?:esta\s+|foi\s+|ficou\s+|consegui\s+)?(?:confirm|agend|marc|reserv|registr)|nao ha (?:uma )?reserva confirmada|so sera|somente sera|apos sua confirmacao|sem confirmacao)/.test(s);}
-const matchesBooking=(data,option,bookingId)=>data?.status==='ativo'&&data.tecnicoId===option.tecnicoId&&data.procedimentoId===option.procedimentoId&&data.data===option.data&&data.horaInicio===option.horaInicio&&data.duracaoMin===option.duracaoMin&&String(data.descricao||'').includes('IARA-'+bookingId);
+export function requestsAppointmentCancellation(text){
+ const s=normalize(text).replace(/[.!?]+$/,'');
+ if(/^(?:nao (?:quero|precisa|e para|deve) cancelar|se |talvez |como |quando )/.test(s))return false;
+ return /^(?:nao precis[oa] mais|desisto|pode cancelar|quero cancelar|cancela(?:r)?(?: a | o | minha | meu | esse | essa | tudo|$)|nao quero mais(?: a apresentacao| a reuniao| agendar|$)|nao vou (?:mais )?(?:participar|poder participar|conseguir participar))\b/.test(s);
+}
+const replyParts=text=>String(text||'').match(/[^.!?\n]+[.!?]?/g)||[];
+export function claimsAppointment(text){return replyParts(text).some(part=>{
+ const s=normalize(part);
+ if(s.endsWith('?')||/^(?:posso|quer(?: que)?|voce (?:quer|prefere)|gostaria|podemos|se voce|caso voce)\b/.test(s))return false;
+ if(/(?:ainda nao|nao (?:esta|foi|ficou|consegui)|nao ha (?:uma )?reserva|so sera|somente sera|sera confirmad|apos sua confirmacao|sem confirmacao|precisa (?:ser |de )?confirm)/.test(s))return false;
+ const appointment=/(?:apresentacao|agendamento|reuniao|horario|segunda|terca|quarta|quinta|sexta|sabado|domingo|amanha|\d{1,2}:\d{2}|\d{1,2}h\b)/.test(s);
+ const assertion=/(?:confirmad[oa]|agendad[oa]|marcad[oa]|reservad[oa]|registrad[oa]|agendei|reservei|marquei|registrei|nos vemos|ate (?:amanha|segunda|terca|quarta|quinta|sexta|sabado|domingo)|fechado|combinado|te espero)/.test(s);
+ return appointment&&assertion;
+});}
+
+export const matchesBooking=(data,option,bookingId)=>data?.status==='ativo'&&data.tecnicoId===option.tecnicoId&&data.procedimentoId===option.procedimentoId&&data.data===option.data&&data.horaInicio===option.horaInicio&&data.duracaoMin===option.duracaoMin&&String(data.descricao||'').includes('IARA-'+bookingId);
 export const AGENDA_TOOL={name:'consultar_horarios_apresentacao',description:'Consulta horários reais de apresentação dos responsáveis autorizados. Use quando o cliente quer conhecer/apresentar o sistema, em vez de encaminhar para agendamento manual. A plataforma enviará opções reais e pedirá a confirmação antes de reservar.',strict:true,input_schema:{type:'object',additionalProperties:false,properties:{data_inicio:{type:['string','null'],description:'Dia desejado em YYYY-MM-DD; null procura os próximos dias.'},data_fim:{type:['string','null'],description:'Fim da busca YYYY-MM-DD; null usa a janela configurada.'},periodo:{type:'string',enum:['manha','tarde','qualquer']}},required:['data_inicio','data_fim','periodo']}};
 export class AgendaService{
  constructor(store,config,{fetchImpl=fetch,now=()=>new Date()}={}){this.store=store;this.config=config;this.fetch=fetchImpl;this.now=now;this.running=new Map();}
- async init(){await this.store.pool.query("UPDATE agenda_bookings SET status='uncertain',error='Execução interrompida: conferir a agenda antes de tentar novamente.',updated_at=now() WHERE status='sending'");}
+ async init(){
+  await this.store.pool.query("UPDATE agenda_bookings SET status='uncertain',error='Execução interrompida: conferir a agenda antes de tentar novamente.',updated_at=now() WHERE status='sending'");
+  const rows=(await this.store.pool.query(`SELECT b.connection_id,b.phone,m.id,m.text FROM agenda_bookings b JOIN LATERAL(SELECT id,data->>'text' AS text FROM messages WHERE connection_id=b.connection_id AND phone=b.phone AND direction='in' AND occurred_at>=b.created_at ORDER BY occurred_at DESC,id DESC LIMIT 1)m ON true WHERE b.status IN ('confirmed','uncertain') AND b.cancellation_requested_at IS NULL AND ((b.option_data->>'data')::date+(b.option_data->>'horaInicio')::time) AT TIME ZONE 'America/Sao_Paulo'>$1 LIMIT 1000`,[this.now()])).rows;
+  for(const m of rows)if(requestsAppointmentCancellation(m.text))await this.cancelFromMessage(m.connection_id,m.phone,m.text,m.id);
+ }
  async settings(id){const {rows}=await this.store.pool.query('SELECT * FROM agenda_settings WHERE connection_id=$1',[id]);return rows[0]||{connection_id:id,enabled:false,procedure_id:null,technician_ids:[],horizon_days:7,max_options:3,weekdays:[1,2,3,4,5],start_time:'08:00',end_time:'18:00',version:0};}
  key(settings){return settings.api_key_cipher?decryptSecret(settings.api_key_cipher,this.config.connectionsKey):settings.connection_id==='default'?this.config.agendaApiKey||'':'';}
  async publicSettings(id){const s=await this.settings(id);const {api_key_cipher,...safe}=s;return {...safe,keyConfigured:!!this.key(s),timezone:TZ};}
@@ -40,50 +67,103 @@ export class AgendaService{
   await this.store.scope(id).audit('agenda_configured',userId,{enabled:body.enabled,procedure,technicians:ids});return this.publicSettings(id);
  }
  async enabled(id){return (await this.settings(id)).enabled;}
- async instructions(id){if(!await this.enabled(id))return '';return '\n\nAGENDA INTEGRADA — estas instruções substituem apenas a regra antiga de agenda não integrada: há uma API real de apresentação. Ao haver interesse, use consultar_horarios_apresentacao. Não encaminhe ao vendedor só para colher horário se o cliente não pediu uma pessoa humana. A plataforma oferece horários reais, identifica a escolha e pede CONFIRMAR antes de criar. Quando o cliente confirmar a opção escolhida, a plataforma registra automaticamente a apresentação e marca o chat com o dia e horário; não diga que vai aguardar um vendedor para lançar. Não faça perguntas extras de qualificação para adiar o agendamento de um lead que já escolheu. Nunca invente disponibilidade nem diga que reservou sem confirmação registrada pela plataforma. Não peça CNPJ para um lead novo agendar. Não anuncie calendário confirmado por conta própria. Mesmo que uma resposta anterior sua tenha dito que agendou, isso não comprova reserva: não repita confirmação com base apenas no histórico, na escolha do cliente ou na criação de negócio no CRM. A plataforma valida o registro real da agenda. Data local atual: '+isoDay(this.now())+'; fuso America/Sao_Paulo.';}
- async bookings(id,phone=null){return (await this.store.pool.query('SELECT id,phone,option_data,status,remote_id,error,created_at,updated_at FROM agenda_bookings WHERE connection_id=$1 AND ($2::text IS NULL OR phone=$2) ORDER BY created_at DESC LIMIT 100',[id,phone])).rows;}
+ async instructions(id){if(!await this.enabled(id))return '';return '\n\nAGENDA INTEGRADA — estas instruções substituem apenas a regra antiga de agenda não integrada: há uma API real de apresentação. Use consultar_horarios_apresentacao quando o cliente pedir ou aceitar conhecer o sistema ou consultar horários; interesse no produto, ramo informado e perguntas de preço não são aceite de apresentação. Responda primeiro à dúvida atual, explique brevemente como a solução ajuda e só então convide, sem impor reunião. Não pergunte manhã ou tarde antes do aceite. A apresentação é a equipe mostrando o sistema; o cliente não precisa preparar material. Não encaminhe ao vendedor só para colher horário se o cliente não pediu uma pessoa humana. A plataforma oferece horários reais, identifica a escolha e pede CONFIRMAR antes de criar. Quando o cliente confirmar a opção escolhida, a plataforma registra automaticamente a apresentação e marca o chat com o dia e horário; não diga que vai aguardar um vendedor para lançar. Não faça perguntas extras de qualificação para adiar o agendamento de um lead que já escolheu. Nunca invente disponibilidade nem diga que reservou sem confirmação registrada pela plataforma. Não peça CNPJ para um lead novo agendar. Não anuncie calendário confirmado por conta própria. Mesmo que uma resposta anterior sua tenha dito que agendou, isso não comprova reserva: não repita confirmação com base apenas no histórico, na escolha do cliente ou na criação de negócio no CRM. A plataforma valida o registro real da agenda. Data local atual: '+isoDay(this.now())+'; fuso America/Sao_Paulo.';}
+ async bookings(id,phone=null){return (await this.store.pool.query('SELECT id,phone,option_data,status,cancellation_requested_at,remote_id,error,created_at,updated_at FROM agenda_bookings WHERE connection_id=$1 AND ($2::text IS NULL OR phone=$2) ORDER BY created_at DESC LIMIT 100',[id,phone])).rows;}
  async active(id,phone){const rows=await this.bookings(id,phone);return rows.find(b=>['sending','uncertain'].includes(b.status)||b.status==='confirmed'&&slotTime(b.option_data)+b.option_data.duracaoMin*60000>this.now().getTime());}
  async guardReply(id,phone,text){
   if(!claimsAppointment(text))return text;
   const b=await this.active(id,phone);
+  if(b?.cancellation_requested_at)return 'Seu pedido de cancelamento foi registrado e os lembretes foram interrompidos. A equipe precisa conferir a liberação do horário na agenda.';
   if(b?.status==='confirmed'){
    try{const remote=(await this.call(await this.settings(id),'/agendamentos/'+b.remote_id)).data;if(matchesBooking(remote,b.option_data,b.id))return 'Sua apresentação está confirmada para '+label(b.option_data)+' (horário de Brasília). Agendamento nº '+b.remote_id+'.';}catch{/* Confirmation requires the actual remote record. */}
   }
+  const remainder=replyParts(text).filter(part=>!claimsAppointment(part)).join('').trim();
   await this.store.scope(id).audit('appointment_claim_blocked',null,{phone,bookingId:b?.id||null});
+  if(remainder&&/[a-zA-ZÀ-ÿ]{4}/.test(remainder)&&!/^ate la[.!]?$/i.test(normalize(remainder)))return remainder;
   return b?'A solicitação de agendamento precisa ser conferida pela equipe. Não vou afirmar que o horário está reservado sem essa confirmação.':'Ainda não há uma reserva confirmada na agenda. Para agendar, escolha uma opção de horário disponível e confirme quando eu pedir. Posso consultar as opções atuais para você?';
  }
  async consult(id,phone,input,inboundId){
   if(!['manha','tarde','qualquer',undefined].includes(input.periodo))throw err('Período inválido.');
   const s=await this.settings(id);if(!s.enabled)throw err('O agendamento automático está desativado.');
-  const current=await this.active(id,phone);if(current)return {reply:current.status==='confirmed'?'Sua apresentação já está agendada para '+label(current.option_data)+' (horário de Brasília).':'Há uma solicitação de agendamento aguardando conferência da equipe. Não vou criar outra reserva antes dessa verificação.'};
+  const current=await this.active(id,phone);if(current)return {reply:current.cancellation_requested_at?'Há um pedido de cancelamento aguardando conferência da equipe. Os lembretes estão interrompidos.':current.status==='confirmed'?'Sua apresentação já está agendada para '+label(current.option_data)+' (horário de Brasília).':'Há uma solicitação de agendamento aguardando conferência da equipe. Não vou criar outra reserva antes dessa verificação.'};
   const today=isoDay(this.now()),from=input.data_inicio||today,to=input.data_fim||plusDay(from,s.horizon_days-1);
   if(!validDay(from)||!validDay(to)||from<today||to<from||Date.parse(to)-Date.parse(from)>30*86400000||from>plusDay(today,30))throw err('Consulte um período futuro de até 31 dias.');
   await this.store.pool.query('DELETE FROM agenda_selections WHERE connection_id=$1 AND phone=$2',[id,phone]);await this.store.pool.query('UPDATE agenda_offers SET expires_at=now() WHERE connection_id=$1 AND phone=$2',[id,phone]);
   const options=[];for(const technician of s.technician_ids){const {data}=await this.call(s,'/horarios?'+new URLSearchParams({procedimentoId:s.procedure_id,dataInicio:from,dataFim:to,tecnicoId:technician}));if(!Array.isArray(data.disponibilidade)||!Number.isInteger(data.duracaoMin)||data.duracaoMin<1)throw err('A agenda retornou horários em formato inválido.',502);
-   for(const day of data.disponibilidade){if(day.tecnicoId!==technician||!validDay(day.data)||day.data<from||day.data>to||!s.weekdays.includes(new Date(day.data+'T12:00Z').getUTCDay()))continue;for(const hour of day.horarios||[]){if(!validHour(hour)||hour<s.start_time||minutes(hour)+data.duracaoMin>minutes(s.end_time)||input.periodo==='manha'&&hour>='12:00'||input.periodo==='tarde'&&hour<'12:00')continue;const slot={id:crypto.randomUUID(),tecnicoId:technician,tecnicoNome:String(day.tecnicoNome||'Responsável'),procedimentoId:s.procedure_id,data:day.data,horaInicio:hour,duracaoMin:data.duracaoMin};if(slotTime(slot)>this.now().getTime()+60000)options.push(slot);}}
+   for(const day of data.disponibilidade){if(day.tecnicoId!==technician||!validDay(day.data)||day.data<from||day.data>to||!s.weekdays.includes(new Date(day.data+'T12:00Z').getUTCDay()))continue;for(const hour of day.horarios||[]){if(!validHour(hour)||hour<s.start_time||minutes(hour)+data.duracaoMin>minutes(s.end_time)||input.periodo==='manha'&&hour>='12:00'||input.periodo==='tarde'&&hour<'12:00')continue;const slot={id:crypto.randomUUID(),tecnicoId:technician,tecnicoNome:String(day.tecnicoNome||'Responsável').slice(0,60),procedimentoId:s.procedure_id,data:day.data,horaInicio:hour,duracaoMin:data.duracaoMin};if(slotTime(slot)>this.now().getTime()+60000)options.push(slot);}}
   }
   options.sort((a,b)=>slotTime(a)-slotTime(b)||a.tecnicoId-b.tecnicoId);const unique=[];for(const option of options){if(unique.some(o=>o.data===option.data&&o.horaInicio===option.horaInicio))continue;unique.push(option);if(unique.length>=s.max_options)break;}
   if(!unique.length)return {reply:'Não encontrei horários livres dos apresentadores nesse período. Você prefere tentar outro dia?'};
-  const offerId=crypto.randomUUID();await this.store.pool.query(`INSERT INTO agenda_offers(id,connection_id,phone,inbound_id,options,config_version,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(connection_id,inbound_id) DO UPDATE SET options=excluded.options,config_version=excluded.config_version,expires_at=excluded.expires_at,offered_at=NULL`,[offerId,id,phone,inboundId,JSON.stringify(unique),s.version,new Date(this.now().getTime()+10*60000)]);
-  return {reply:'Encontrei estas opções para sua apresentação (horário de Brasília):\n'+unique.map((o,i)=>(i+1)+') '+label(o)).join('\n')+'\nQual você prefere? Responda com o número da opção. O horário só será reservado após sua confirmação.'};
+  const offerId=crypto.randomUUID();const {rows:[savedOffer]}=await this.store.pool.query(`INSERT INTO agenda_offers(id,connection_id,phone,inbound_id,options,config_version,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(connection_id,inbound_id) DO UPDATE SET options=excluded.options,config_version=excluded.config_version,expires_at=excluded.expires_at,offered_at=NULL RETURNING id`,[offerId,id,phone,inboundId,JSON.stringify(unique),s.version,new Date(this.now().getTime()+10*60000)]);
+  const reply='Encontrei estas opções para sua apresentação (horário de Brasília):\n'+unique.map((o,i)=>(i+1)+') '+label(o)).join('\n')+'\nQual você prefere? Toque no horário ou responda com o número da opção. O horário só será reservado após sua confirmação.';
+  const interactive=appointmentOptions(savedOffer.id,unique);
+  // Keep the actual dates and presenters visible, including in the panel history.
+  interactive.body.text=reply;
+  return {reply,interactive};
  }
  async markSent(id,phone,inboundId){await this.store.pool.query('UPDATE agenda_offers SET offered_at=now() WHERE connection_id=$1 AND phone=$2 AND inbound_id=$3',[id,phone,inboundId]);await this.store.pool.query('UPDATE agenda_selections SET confirmation_sent_at=now() WHERE connection_id=$1 AND phone=$2 AND selection_message_id=$3',[id,phone,inboundId]);}
- choice(text,options){const value=normalize(text).replace(/[.!?]+$/,'');const match=/^(?:(?:quero|prefiro|pode ser|escolho)\s+)?(?:(?:a|o)\s+)?(?:opcao\s*)?([1-5])$/.exec(value);if(match)return options[Number(match[1])-1]||null;const hour=/\b([01]?\d|2[0-3])(?::([0-5]\d)|\s*h(?:oras?|([0-5]\d))?)\b/.exec(value);if(!hour)return null;const time=hour[1].padStart(2,'0')+':'+(hour[2]||hour[3]||'00');let found=options.filter(o=>o.horaInicio===time);const date=/(\d{2})\/(\d{2})(?:\/(\d{4}))?/.exec(value);if(date)found=found.filter(o=>o.data.slice(5)===date[2]+'-'+date[1]&&(!date[3]||o.data.startsWith(date[3])));if(/amanha/.test(value))found=found.filter(o=>o.data===plusDay(isoDay(this.now()),1));for(const day of ['domingo','segunda','terca','quarta','quinta','sexta','sabado'])if(value.includes(day))found=found.filter(o=>normalize(new Intl.DateTimeFormat('pt-BR',{timeZone:TZ,weekday:'long'}).format(new Date(o.data+'T12:00Z'))).includes(day));return found.length===1?found[0]:null;}
- async intercept(id,phone,text,inboundId){
-  if(!await this.enabled(id))return null;const value=normalize(text).replace(/[.!?]+$/,'');const confirm=confirmsAppointment(text);
+ choice(text,options){
+  const value=normalize(text).replace(/[.!?]+$/,'');
+  const number=/^(?:(?:quero|prefiro|pode ser|escolho)\s+)?(?:(?:a|o)\s+)?(?:opcao\s*)?([1-5])$/.exec(value);
+  if(number)return options[Number(number[1])-1]||null;
+  const clock=/\b([01]?\d|2[0-3])(?::([0-5]\d)|\s*(?:horas?|hrs?|h)(?:\s*([0-5]\d))?)\b/.exec(value);
+  const natural=/(?:\bas\s+|\bpelas\s+)([01]?\d|2[0-3])(?:\s*(?:da|de)\s+(manha|tarde|noite))?\b/.exec(value);
+  if(!clock&&!natural)return null;
+  let hour=Number((clock||natural)[1]);if(natural&&!clock&&['tarde','noite'].includes(natural[2])&&hour<12)hour+=12;
+  const time=String(hour).padStart(2,'0')+':'+(clock?(clock[2]||clock[3]||'00'):'00');let found=options.filter(o=>o.horaInicio===time);
+  const date=/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/.exec(value);
+  if(date)found=found.filter(o=>o.data.slice(5)===date[2].padStart(2,'0')+'-'+date[1].padStart(2,'0')&&(!date[3]||o.data.startsWith(date[3])));
+  if(/\bamanha\b/.test(value))found=found.filter(o=>o.data===plusDay(isoDay(this.now()),1));
+  else if(/\bhoje\b/.test(value))found=found.filter(o=>o.data===isoDay(this.now()));
+  for(const day of ['domingo','segunda','terca','quarta','quinta','sexta','sabado'])if(value.includes(day))found=found.filter(o=>normalize(new Intl.DateTimeFormat('pt-BR',{timeZone:TZ,weekday:'long'}).format(new Date(o.data+'T12:00Z'))).includes(day));
+  return found.length===1?found[0]:null;
+ }
+ async suppressRemindersFromMessage(id,phone,text,inboundId){
+  if(!requestsAppointmentCancellation(text))return [];
+  return this.store.transaction(async tx=>{
+   const {rows}=await tx.pool.query(`UPDATE agenda_bookings SET cancellation_requested_at=COALESCE(cancellation_requested_at,now()),cancellation_message_id=COALESCE(cancellation_message_id,$3),updated_at=now() WHERE connection_id=$1 AND phone=$2 AND status IN ('confirmed','uncertain','sending') AND ((option_data->>'data')::date+(option_data->>'horaInicio')::time) AT TIME ZONE 'America/Sao_Paulo'>$4 RETURNING *`,[id,phone,inboundId,this.now()]);
+   for(const b of rows)await tx.pool.query("UPDATE appointment_reminders SET status='skipped',reason='Cliente solicitou cancelamento.',updated_at=now() WHERE booking_id=$1 AND status IN ('pending','checking')",[b.id]);
+   return rows;
+  });
+ }
+ async cancelFromMessage(id,phone,text,inboundId){
+  const rows=await this.suppressRemindersFromMessage(id,phone,text,inboundId);if(!rows.length)return null;
+  const scoped=this.store.scope(id);await scoped.updateLead(phone,{agendamentoStatus:'cancelamento_solicitado',agendamentoResumo:false,cadenceDeclined:true,needsAgendaCancellation:true,status:'encaminhado',motivoEncaminhamento:'cancelamento_agendamento'});
+  for(const b of rows)await scoped.recordEvent({id:'appointment-cancel-'+b.id,phone,direction:'out',actor:'system',kind:'appointment_cancelled',state:'internal',text:'Cliente solicitou cancelamento da apresentação. Lembretes interrompidos; conferir liberação do horário na agenda externa.'});
+  return {cancellation:true,reply:'Recebi seu pedido de cancelamento e interrompi os lembretes desta apresentação. A equipe vai conferir a liberação do horário na agenda. Obrigado por avisar.'};
+ }
+ async intercept(id,phone,text,inboundId,interactiveReplyId){
+  if(!interactiveReplyId){const cancelled=await this.cancelFromMessage(id,phone,text,inboundId);if(cancelled)return cancelled;}
+
+  const isAgendaClick=typeof interactiveReplyId==='string'&&interactiveReplyId.startsWith('agenda:');
+  if(!await this.enabled(id))return isAgendaClick?{reply:'O agendamento automático está desativado. A equipe pode continuar seu atendimento.'}:null;
+  const click=isAgendaClick?/^agenda:(pick|confirm|other):([a-f0-9-]{36}):([a-f0-9-]{24,36})$/.exec(interactiveReplyId):null;
+  const stale={reply:'Este botão não corresponde à escolha atual. Use as opções mais recentes ou peça novos horários.'};
+  if(isAgendaClick&&!click)return stale;
+  const value=normalize(text).replace(/[.!?]+$/,'');let confirm=click?click[1]==='confirm':confirmsAppointment(text);
   const {rows:[selection]}=await this.store.pool.query('SELECT s.*,o.options,o.config_version,o.offered_at FROM agenda_selections s JOIN agenda_offers o ON o.id=s.offer_id WHERE s.connection_id=$1 AND s.phone=$2',[id,phone]);
-  if(selection&&/^(nao|cancelar|nao confirmar)$/.test(value)){await this.store.pool.query('DELETE FROM agenda_selections WHERE connection_id=$1 AND phone=$2',[id,phone]);return {reply:'Tudo bem, não reservei esse horário. Se quiser, posso procurar outra opção.'};}
+  // Assentimentos curtos só confirmam uma escolha explícita que já foi enviada.
+  if(!click&&selection&&/^(?:blz|beleza|ok|okay|pode ser|ta bom|esta bom|certo|fechado)$/.test(value))confirm=true;
+  if(click&&click[1]!=='pick'){
+   if(!selection||selection.offer_id!==click[2]||selectionToken(selection.selection_message_id)!==click[3]||!selection.confirmation_sent_at)return stale;
+   if(click[1]==='other')return this.consult(id,phone,{periodo:'qualquer'},inboundId);
+  }
+  if(!click&&selection&&/^(nao|cancelar|nao confirmar)$/.test(value)){await this.store.pool.query('DELETE FROM agenda_selections WHERE connection_id=$1 AND phone=$2',[id,phone]);return {reply:'Tudo bem, não reservei esse horário. Se quiser, posso procurar outra opção.'};}
   if(selection&&confirm){if(!selection.confirmation_sent_at||selection.selection_message_id===inboundId)return {reply:'Primeiro escolha uma das opções oferecidas para eu confirmar com você.'};if(new Date(selection.expires_at)<=this.now())return this.consult(id,phone,{periodo:'qualquer'},inboundId);return this.confirm(id,phone,selection,inboundId);}
   const {rows:[offer]}=await this.store.pool.query('SELECT * FROM agenda_offers WHERE connection_id=$1 AND phone=$2 AND offered_at IS NOT NULL ORDER BY created_at DESC LIMIT 1',[id,phone]);
-  if(!offer)return null;const option=this.choice(text,offer.options);if(!option)return confirm&&value!=='sim'?this.consult(id,phone,{periodo:'qualquer'},inboundId):null;if(new Date(offer.expires_at)<=this.now())return this.consult(id,phone,{periodo:'qualquer'},inboundId);
+  if(!offer)return click?stale:null;
+  if(click&&offer.id!==click[2])return stale;
+  const option=click?offer.options.find(o=>o.id===click[3]):this.choice(text,offer.options);
+  if(!option)return click?stale:confirm&&value!=='sim'?this.consult(id,phone,{periodo:'qualquer'},inboundId):null;if(new Date(offer.expires_at)<=this.now())return this.consult(id,phone,{periodo:'qualquer'},inboundId);
   const s=await this.settings(id);if(offer.config_version!==s.version)return this.consult(id,phone,{periodo:'qualquer'},inboundId);
   await this.store.pool.query(`INSERT INTO agenda_selections(connection_id,phone,offer_id,option_id,selection_message_id,expires_at) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(connection_id,phone) DO UPDATE SET offer_id=excluded.offer_id,option_id=excluded.option_id,selection_message_id=excluded.selection_message_id,expires_at=excluded.expires_at,confirmation_sent_at=NULL`,[id,phone,offer.id,option.id,inboundId,offer.expires_at]);
-  return {reply:'Você escolheu '+label(option)+' (horário de Brasília), com duração de '+option.duracaoMin+' minutos. Posso confirmar? Responda CONFIRMAR para reservar.'};
+  const reply='Você escolheu '+label(option)+' (horário de Brasília), com duração de '+option.duracaoMin+' minutos. Posso confirmar? Toque em Confirmar ou responda CONFIRMAR para reservar.';
+  return {reply,interactive:confirmationButtons(offer.id,inboundId,reply)};
  }
  async confirm(id,phone,selection,inboundId){
   const lock=id+':'+phone;if(this.running.has(lock))return {reply:'Estou verificando sua solicitação de agendamento.'};this.running.set(lock,true);
   try{
-   const active=await this.active(id,phone);if(active)return {reply:active.status==='confirmed'?'Sua apresentação já está confirmada para '+label(active.option_data)+'.':'A equipe está conferindo a solicitação anterior. Não farei outra reserva agora.'};
+   const active=await this.active(id,phone);if(active)return {reply:active.cancellation_requested_at?'Há um pedido de cancelamento aguardando conferência da equipe. Os lembretes estão interrompidos.':active.status==='confirmed'?'Sua apresentação já está confirmada para '+label(active.option_data)+'.':'A equipe está conferindo a solicitação anterior. Não farei outra reserva agora.'};
    const s=await this.settings(id),option=selection.options.find(o=>o.id===selection.option_id);if(!option||s.version!==selection.config_version||!s.technician_ids.includes(option.tecnicoId))return this.consult(id,phone,{periodo:'qualquer'},inboundId);
    const fresh=(await this.call(s,'/horarios?'+new URLSearchParams({procedimentoId:s.procedure_id,dataInicio:option.data,dataFim:option.data,tecnicoId:option.tecnicoId}))).data;
    if(fresh.duracaoMin!==option.duracaoMin||!fresh.disponibilidade?.some(d=>d.tecnicoId===option.tecnicoId&&d.data===option.data&&d.horarios?.includes(option.horaInicio)))return this.consult(id,phone,{data_inicio:option.data,periodo:'qualquer'},inboundId);

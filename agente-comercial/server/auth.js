@@ -18,13 +18,19 @@ export class PasswordAuth{
  async init(){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.config.adminEmail)||!this.config.adminSetupToken)throw new Error('Configure ADMIN_EMAIL e ADMIN_SETUP_TOKEN para o primeiro acesso.');
   await this.db.query(`INSERT INTO users(id,email,role,setup_hash,setup_expires_at) VALUES($1,$2,'admin',$3,now()+interval '24 hours') ON CONFLICT(email) DO NOTHING`,[crypto.randomUUID(),normalizeEmail(this.config.adminEmail),digest(this.config.adminSetupToken)]);
+  await this.db.query('UPDATE users SET platform_admin=true WHERE email=$1',[normalizeEmail(this.config.adminEmail)]);
+ }
+ async selectCompany(req,id){
+  const user=await this.user(req);if(!user?.platform_admin)throw Object.assign(new Error('Apenas o administrador da plataforma pode alternar empresas.'),{status:403});
+  if(!(await this.db.query('SELECT 1 FROM companies WHERE id=$1',[id])).rowCount)throw Object.assign(new Error('Empresa não encontrada.'),{status:404});
+  await this.db.query('UPDATE sessions SET company_id=$2 WHERE token_hash=$1',[digest(this.cookie(req)),id]);return this.user(req);
  }
  cookie(req){return /(?:^|;\s*)command_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie||'')?.[1];}
  setCookie(res,token,maxAge=43200){res.setHeader('Set-Cookie',`${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${this.secure?'; Secure':''}`);}
  sameOrigin(req){return (!req.headers.origin||req.headers.origin===new URL(this.config.publicUrl).origin)&&req.headers['x-requested-with']==='CommandPanel';}
- identityFields(){return "u.id,u.email,u.name,u.role,u.access_mode,u.extra_permissions,u.signature_default,COALESCE((SELECT json_agg(connection_id ORDER BY connection_id) FROM user_connections WHERE user_id=u.id),'[]'::json) AS connections";}
- async identity(id){return resolveAccess(this.db,(await this.db.query('SELECT '+this.identityFields()+' FROM users u WHERE u.id=$1 AND u.active',[id])).rows[0]||null);}
- async user(req){const token=this.cookie(req);if(!token)return null;return resolveAccess(this.db,(await this.db.query('SELECT '+this.identityFields()+' FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active',[digest(token)])).rows[0]||null);}
+ identityFields(){return "u.id,u.email,u.name,u.role,u.company_id,u.company_id AS home_company_id,u.platform_admin,(SELECT name FROM companies WHERE id=u.company_id) AS company_name,u.access_mode,u.extra_permissions,u.signature_default,u.accepts_ai_handoff,u.handoff_available,COALESCE((SELECT json_agg(connection_id ORDER BY connection_id) FROM user_connections WHERE user_id=u.id),'[]'::json) AS connections";}
+ async identity(id){return resolveAccess(this.db,(await this.db.query('SELECT '+this.identityFields()+' FROM users u WHERE u.id=$1 AND u.active AND (u.platform_admin OR EXISTS(SELECT 1 FROM companies e WHERE e.id=u.company_id AND e.active))',[id])).rows[0]||null);}
+ async user(req){const token=this.cookie(req);if(!token)return null;return resolveAccess(this.db,(await this.db.query('SELECT '+this.identityFields()+',COALESCE(s.company_id,u.company_id) AS company_id,(SELECT name FROM companies WHERE id=COALESCE(s.company_id,u.company_id)) AS company_name FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active AND (u.platform_admin OR (COALESCE(s.company_id,u.company_id)=u.company_id AND EXISTS(SELECT 1 FROM companies e WHERE e.id=u.company_id AND e.active)))',[digest(token)])).rows[0]||null);}
 
  async newSession(user,res){if(!await this.identity(user.id))throw Object.assign(new Error('Conta desativada.'),{status:401});const token=crypto.randomBytes(32).toString('hex');await this.db.query('DELETE FROM sessions WHERE expires_at<now()');await this.db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '12 hours')",[digest(token),user.id]);this.setCookie(res,token);}
  async throttled(key){const {rows}=await this.db.query("SELECT attempts FROM auth_throttle WHERE key=$1 AND window_start>now()-interval '15 minutes'",[key]);return (rows[0]?.attempts||0)>=10;}
@@ -67,6 +73,7 @@ export class PasswordAuth{
   }
   await this.db.query('DELETE FROM auth_throttle WHERE key=$1',[key]);
   await this.store.audit('login',user.id);
+  if(!await this.identity(user.id))return respond(403,'Empresa ou conta desativada.');
   await this.newSession(user,res);
   return respond(200,await this.identity(user.id));
  }

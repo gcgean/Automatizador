@@ -84,7 +84,7 @@ export class MetaConversions{
  }
  tick(){if(this.running)return this.running;this.running=this.process().finally(()=>{this.running=null;});return this.running;}
  async process(){
-  const rows=(await this.store.pool.query("SELECT id,connection_id,phone FROM meta_conversion_events WHERE status='queued' ORDER BY created_at LIMIT 10")).rows;
+  const rows=(await this.store.pool.query("SELECT id,connection_id,phone FROM meta_conversion_events WHERE EXISTS(SELECT 1 FROM whatsapp_connections tenant_c JOIN companies tenant_e ON tenant_e.id=tenant_c.company_id WHERE tenant_c.id=meta_conversion_events.connection_id AND tenant_e.active) AND status='queued' ORDER BY created_at LIMIT 10")).rows;
   for(const row of rows){
    const event=await this.store.transaction(async tx=>{
     await tx.pool.query('SELECT 1 FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[row.connection_id,row.phone]);

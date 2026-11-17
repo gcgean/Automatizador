@@ -19,7 +19,7 @@ export function extractMessages(payload, phoneNumberId) {
       const names = Object.fromEntries((value.contacts ?? []).map(c => [c.wa_id, c.profile?.name ?? '']));
       for (const msg of value.messages ?? []) {
         if(msg.type==='interactive'&&msg.interactive?.type==='call_permission_reply')continue;
-        out.push({id: msg.id, from: msg.from, name: names[msg.from] ?? '', type: msg.type, text: describe(msg),...(msg.referral?{referral:msg.referral,timestamp:msg.timestamp}:{}),...(['audio','image','video','document','sticker'].includes(msg.type)&&msg[msg.type]?.id?{media:{kind:msg.type,id:msg[msg.type].id,mime:msg[msg.type].mime_type||'',filename:msg[msg.type].filename||'',caption:msg[msg.type].caption||'',sha256:msg[msg.type].sha256||''}}:{})});
+        out.push({id: msg.id, ...(msg.timestamp?{timestamp:msg.timestamp}:{}), from: msg.from, name: names[msg.from] ?? '', type: msg.type, text: describe(msg),...(msg.type==='interactive'&&(msg.interactive?.button_reply||msg.interactive?.list_reply)?{interactiveReplyId:(msg.interactive.button_reply||msg.interactive.list_reply).id}:{}),...(msg.referral?{referral:msg.referral,timestamp:msg.timestamp}:{}),...(['audio','image','video','document','sticker'].includes(msg.type)&&msg[msg.type]?.id?{media:{kind:msg.type,id:msg[msg.type].id,mime:msg[msg.type].mime_type||'',filename:msg[msg.type].filename||'',caption:msg[msg.type].caption||'',sha256:msg[msg.type].sha256||''}}:{})});
       }
     }
   }
@@ -59,7 +59,8 @@ export class WhatsAppClient {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const detail = data?.error?.message ?? `HTTP ${response.status}`;
-      const error = new Error(`WhatsApp API: ${detail}`);
+      const code=data?.error?.code,explanation=Number(code)===131049?'A Meta limitou a entrega deste modelo de marketing.':Number(code)===131047?'A janela de atendimento está encerrada; use um modelo aprovado.':'';
+      const error = new Error(`WhatsApp API${Number.isInteger(code)?' ('+code+')':''}: ${explanation||detail}`);
       error.code = data?.error?.code;
       throw error;
     }
@@ -78,6 +79,21 @@ export class WhatsAppClient {
       return result;
     } catch (error) {
       if (this.store) await this.store.recordEvent({...event, state: 'uncertain', error: error.message});
+      throw error;
+    }
+  }
+
+  async sendInteractive(to,text,interactive,metadata={}){
+    const event={id:crypto.randomUUID(),phone:to,direction:'out',text,...metadata,interactive,state:'sending'};
+    if(this.store)await this.store.recordEvent(event);
+    try{
+      const result=await this.call('messages',{messaging_product:'whatsapp',recipient_type:'individual',to,type:'interactive',interactive});
+      const messageId=result.messages?.[0]?.id;
+      if(!messageId)throw new Error('A Meta não confirmou o identificador do envio interativo. Confira o recebimento.');
+      if(this.store)await this.store.recordEvent({...event,messageId,state:'accepted'});
+      return result;
+    }catch(error){
+      if(this.store)await this.store.recordEvent({...event,state:'uncertain',error:error.message});
       throw error;
     }
   }

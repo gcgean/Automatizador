@@ -3,15 +3,22 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {Pool} from 'pg';
 import {PgStore} from '../server/pg-store.js';
-import {AgendaService,AGENDA_BASE,AGENDA_TOOL,confirmsAppointment,claimsAppointment} from '../server/agenda.js';
+import {AgendaService,AGENDA_BASE,AGENDA_TOOL,confirmsAppointment,claimsAppointment,requestsAppointmentCancellation} from '../server/agenda.js';
 import {SalesAgent} from '../server/agent.js';
 const urlText=process.env.TEST_DATABASE_URL;
 test('agenda interpreta confirma e horas por extenso e identifica confirmações inventadas',()=>{
  for(const text of ['Confirma','Confirma!','Sim, pode confirmar','pode marcar por favor','confirmo'])assert.equal(confirmsAppointment(text),true,text);
  for(const text of ['não confirma','não pode marcar','se eu confirmar amanhã?'])assert.equal(confirmsAppointment(text),false,text);
  const a=new AgendaService({},{}),options=[{data:'2026-11-10',horaInicio:'09:00'},{data:'2026-11-10',horaInicio:'10:00'}];assert.equal(a.choice('2terca-feira.        as 9 horas',options),options[0]);assert.equal(a.choice('às 9h',options),options[0]);assert.equal(a.choice('às 9 horas',[...options,{data:'2026-11-11',horaInicio:'09:00'}]),null);
- for(const text of ['Perfeito, está confirmado: terça-feira às 11:00 com Ariany.','Sua apresentação está registrada para terça às 09:00.','Não se preocupe, seu horário está confirmado para amanhã.'])assert.equal(claimsAppointment(text),true,text);
- for(const text of ['O horário só será reservado após sua confirmação.','Ainda não está confirmado o agendamento.','Seu cadastro está confirmado no CRM.'])assert.equal(claimsAppointment(text),false,text);
+ for(const text of ['Fechado: segunda-feira, às 11h. Até lá!','Combinado para segunda às 11h.','Te espero na reunião de amanhã.', 'Perfeito, está confirmado: terça-feira às 11:00 com Ariany.','Sua apresentação está registrada para terça às 09:00.','Não se preocupe, seu horário está confirmado para amanhã.'])assert.equal(claimsAppointment(text),true,text);
+ for(const text of ['O horário só será reservado após sua confirmação.','Ainda não está confirmado o agendamento.','Seu cadastro está confirmado no CRM.','Quer que eu confirme o horário?','Seu horário será confirmado pela equipe.','O consultor confirma o valor na apresentação. Quer ver horários?'])assert.equal(claimsAppointment(text),false,text);
+});
+test('horários naturais e pedidos de cancelamento sem interpretar negações',()=>{
+ const a=new AgendaService({},{},{now:()=>new Date('2026-11-13T12:00:00Z')}),options=[{data:'2026-11-16',horaInicio:'08:00'},{data:'2026-11-14',horaInicio:'14:00'}];
+ assert.equal(a.choice('segunda às 8',options),options[0]);assert.equal(a.choice('segunda 8 hr',options),options[0]);assert.equal(a.choice('segunda 8 hrs',options),options[0]);assert.equal(a.choice('segunda 8h00',options),options[0]);assert.equal(a.choice('amanhã às 14',options),options[1]);assert.equal(a.choice('amanhã às 2 da tarde',options),options[1]);
+ assert.equal(a.choice('às 8',[...options,{data:'2026-11-17',horaInicio:'08:00'}]),null);
+ for(const text of ['Não precisa mais obrigado','Pode cancelar a apresentação','Quero cancelar','Não vou participar'])assert.equal(requestsAppointmentCancellation(text),true,text);
+ for(const text of ['Não quero cancelar','Como cancelar?','Se eu cancelar amanhã?','Pode confirmar'])assert.equal(requestsAppointmentCancellation(text),false,text);
 });
 test('agenda: configuração, consentimento, conflito, timeout e isolamento sem reservas reais', {skip:!urlText},async()=>{
  const url=new URL(urlText);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'5548');const db=new Pool({connectionString:urlText}),schema='agenda_'+crypto.randomBytes(8).toString('hex');await db.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);const store=new PgStore(url.toString(),'.');
@@ -30,10 +37,18 @@ test('agenda: configuração, consentimento, conflito, timeout e isolamento sem 
   await service.save('default',settings,null);const pub=JSON.stringify(await service.publicSettings('default'));assert.ok(!pub.includes(cfg.agendaApiKey));assert.ok(!pub.includes('api_key_cipher'));
   const phone='5511999900000';await store.updateLead(phone,{nome:'Lead sintético',produtos_interesse:'ERP'});
   const offer=await service.consult('default',phone,{data_inicio:'2026-11-09',data_fim:'2026-11-09',periodo:'qualquer'},'offer-1');assert.match(offer.reply,/09:00/);assert.ok(!offer.reply.includes('Não autorizado'));assert.equal(await service.intercept('default',phone,'1','pick-before-send'),null);
-  await service.markSent('default',phone,'offer-1');const choice=await service.intercept('default',phone,'1','pick-1');assert.match(choice.reply,/CONFIRMAR/);assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,0);
+  const pickId=offer.interactive.action.buttons[0].reply.id;
+  assert.match((await service.intercept('default',phone,'09:00','pick-unsent',pickId)).reply,/escolha atual/);
+  await service.markSent('default',phone,'offer-1');
+  assert.match((await service.intercept('default','5511888800000','09:00','cross-button',pickId)).reply,/escolha atual/);
+  const choice=await service.intercept('default',phone,'Título não confiável','pick-1',pickId);assert.match(choice.reply,/CONFIRMAR/);assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,0);
   const premature=await service.intercept('default',phone,'confirmar','confirm-before-prompt');assert.match(premature.reply,/Primeiro escolha/);await service.markSent('default',phone,'pick-1');
-  const booked=await service.intercept('default',phone,'Confirma','confirm-1');assert.match(booked.reply,/confirmada/);assert.match(booked.reply,/nº 100/);assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,1);
-  await service.intercept('default',phone,'Confirma','confirm-1');await service.consult('default',phone,{periodo:'qualquer'},'new-request');assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,1);
+  const confirmId=choice.interactive.action.buttons[0].reply.id;
+  const secondChoice=await service.intercept('default',phone,'09:00','pick-again',pickId);
+  await service.markSent('default',phone,'pick-again');
+  assert.match((await service.intercept('default',phone,'Confirmar','old-confirm',confirmId)).reply,/escolha atual/);
+  const booked=await service.intercept('default',phone,'Blz','confirm-1');assert.match(booked.reply,/confirmada/);assert.match(booked.reply,/nº 100/);assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,1);
+  await service.intercept('default',phone,'Confirmar','duplicate-click',secondChoice.interactive.action.buttons[0].reply.id);await service.consult('default',phone,{periodo:'qualquer'},'new-request');assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/agendamentos').length,1);
   assert.equal((await store.listLeads())[phone].resultado,'apresentacao_agendada');assert.equal((await store.getEvents(phone)).filter(e=>e.kind==='appointment').length,1);assert.match((await store.getEvents(phone)).find(e=>e.kind==='appointment').text,/09:00/);assert.equal(await service.intercept('default','5511888800000','1','cross-phone'),null);
   const confirmFor=async(p,suffix)=>{await store.updateLead(p,{nome:'QA'});await service.consult('default',p,{data_inicio:'2026-11-09',data_fim:'2026-11-09',periodo:'qualquer'},'offer-'+suffix);await service.markSent('default',p,'offer-'+suffix);await service.intercept('default',p,'1','pick-'+suffix);await service.markSent('default',p,'pick-'+suffix);return service.intercept('default',p,'confirmar','confirm-'+suffix);};
   mode='conflict';const conflicted=await confirmFor('5511999900001','conflict');assert.ok(!conflicted.reply.includes('confirmada'));assert.match(conflicted.reply,/14:00/);assert.equal((await service.bookings('default','5511999900001'))[0].status,'conflict');
@@ -46,8 +61,26 @@ test('agenda: configuração, consentimento, conflito, timeout e isolamento sem 
   const scoped=store.scope('default');const agent=new SalesAgent({config:{aiProvider:'deepseek',sellerNumbers:[]},store:scoped,whatsapp:{},agenda:service});let aiCalls=0;
   const provider={name:'deepseek',complete:async({tools,system})=>{aiCalls++;assert.ok(tools.some(t=>t.name===AGENDA_TOOL.name));assert.match(system,/AGENDA INTEGRADA/);return {append:[],toolCalls:[{id:'slot-call',name:AGENDA_TOOL.name,input:{data_inicio:'2026-11-09',data_fim:'2026-11-09',periodo:'qualquer'}},{id:'handoff-call',name:'encaminhar_para_vendedor',input:{tipo:'apresentacao',preferencia_horario:null,resumo:'Interesse em apresentação'}}]};},toolResults:results=>[{role:'tool',content:JSON.stringify(results)}]};
   const messages=[];const offered=await agent.runTurn('5511999900004',provider,messages,{id:'ai-offer',text:'Quero uma apresentação'});assert.match(offered,/09:00/);assert.equal(aiCalls,1);assert.notEqual((await store.listLeads())['5511999900004']?.status,'encaminhado');
+  const sentButtons=[];const buttonsAgent=new SalesAgent({config:{aiProvider:'deepseek',sellerNumbers:[]},store:scoped,agenda:service,providerFactory:()=>provider,whatsapp:{markRead:async()=>{},sendText:async(to,text)=>sentButtons.push({text}),sendInteractive:async(to,text,interactive)=>sentButtons.push({text,interactive})}});
+  const buttonsPhone='5511999900044';
+  await buttonsAgent.handle({id:'buttons-offer',from:buttonsPhone,text:'Quero uma apresentação',name:'QA'});
+  assert.equal(sentButtons[0].interactive.type,'button');
+  await buttonsAgent.handle({id:'buttons-pick',from:buttonsPhone,text:'Título ignorado',interactiveReplyId:sentButtons[0].interactive.action.buttons[0].reply.id});
+  assert.equal(sentButtons[1].interactive.action.buttons[0].reply.title,'Confirmar');
+  const otherId=sentButtons[1].interactive.action.buttons[1].reply.id;
+  await buttonsAgent.handle({id:'buttons-other',from:buttonsPhone,text:'Outro horário',interactiveReplyId:otherId});
+  assert.match(sentButtons[2].text,/opções/);
+  assert.equal((await service.bookings('default',buttonsPhone)).length,0);
+  assert.match((await service.intercept('default',buttonsPhone,'09:00','stale-pick',sentButtons[0].interactive.action.buttons[0].reply.id)).reply,/escolha atual/);
   await store.pool.query("UPDATE agenda_bookings SET status='sending' WHERE id=$1",[attempt.id]);await assert.rejects(service.review('default',attempt.id,{resolution:'not_created',checked:true},null),/não está aguardando/);await service.init();assert.equal((await service.bookings('default','5511999900002'))[0].status,'uncertain');await service.review('default',attempt.id,{resolution:'not_created',checked:true},null);await assert.rejects(service.review('default',attempt.id,{resolution:'not_created',checked:true},null),/não está aguardando/);
   const badPhone='5511999900099',sent=[];const badProvider={name:'deepseek',complete:async()=>({text:'Perfeito, está confirmado: terça-feira às 11:00 com Ariany.',append:[{role:'assistant',content:'Perfeito, está confirmado: terça-feira às 11:00 com Ariany.'}],toolCalls:[]})};const guardedAgent=new SalesAgent({config:{aiProvider:'deepseek',sellerNumbers:[]},store:scoped,agenda:service,providerFactory:()=>badProvider,whatsapp:{markRead:async()=>{},sendText:async(to,text)=>sent.push(text)}});await guardedAgent.handle({id:'guard-e2e',from:badPhone,text:'Podemos conversar amanhã?',name:'QA'});assert.equal(sent.length,1);assert.match(sent[0],/Ainda não há uma reserva confirmada/);assert.equal(JSON.stringify((await scoped.getConversation(badPhone)).histories).includes('Perfeito, está confirmado'),false);assert.equal((await service.bookings('default',badPhone)).length,0);
   assert.equal(AGENDA_TOOL.strict,true);assert.deepEqual(Object.keys(AGENDA_TOOL.input_schema.properties).sort(),[...AGENDA_TOOL.input_schema.required].sort());
  }finally{await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
+});
+
+test('proteção da agenda preserva resposta de preço e convite sem inventar reserva',async()=>{
+ const audits=[],s=new AgendaService({scope:()=>({audit:async(...a)=>audits.push(a)})},{});s.active=async()=>null;
+ const price='O valor precisa ser confirmado pelo comercial. Quer que eu peça essa informação por aqui?';assert.equal(await s.guardReply('default','qa',price),price);assert.equal(audits.length,0);
+ assert.equal(await s.guardReply('default','qa',price+' Fechado para segunda às 11h.'),price);assert.equal(audits.length,1);
+ assert.match(await s.guardReply('default','qa','Fechado: segunda-feira às 11h. Até lá!'),/Ainda não há uma reserva/);
 });

@@ -2,3 +2,10 @@ CREATE TABLE IF NOT EXISTS cadence_settings(connection_id text PRIMARY KEY REFER
 CREATE TABLE IF NOT EXISTS cadence_queue(connection_id text NOT NULL REFERENCES whatsapp_connections(id),phone text NOT NULL,cycle_id uuid NOT NULL,inbound_id text NOT NULL,question text NOT NULL,status text NOT NULL,attempts int NOT NULL DEFAULT 0,next_at timestamptz,preferred_time text NOT NULL,reason text,updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(connection_id,phone));
 CREATE INDEX IF NOT EXISTS cadence_due_idx ON cadence_queue(next_at) WHERE status='waiting';
 CREATE TABLE IF NOT EXISTS cadence_attempts(id uuid PRIMARY KEY,connection_id text NOT NULL,phone text NOT NULL,cycle_id uuid NOT NULL,attempt int NOT NULL,local_day date NOT NULL,status text NOT NULL,error text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(connection_id,phone,cycle_id,attempt),UNIQUE(connection_id,phone,cycle_id,local_day));
+ALTER TABLE cadence_attempts ADD COLUMN IF NOT EXISTS started_at timestamptz;
+ALTER TABLE cadence_attempts ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+ALTER TABLE cadence_attempts ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE cadence_queue ADD COLUMN IF NOT EXISTS finalized_at timestamptz;
+CREATE INDEX IF NOT EXISTS cadence_attempts_contact ON cadence_attempts(connection_id,phone,created_at DESC);
+CREATE INDEX IF NOT EXISTS cadence_reply_deadline ON cadence_queue(next_at) WHERE status='awaiting_response';
+CREATE INDEX IF NOT EXISTS messages_cadence_attempt ON messages(connection_id,(data->>'cadenceAttemptId')) WHERE data ? 'cadenceAttemptId';

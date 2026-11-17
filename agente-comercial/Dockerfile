@@ -4,6 +4,7 @@ COPY package*.json ./
 RUN npm ci
 COPY index.html vite.config.js ./
 COPY web ./web
+COPY public ./public
 COPY shared ./shared
 RUN npm run build
 

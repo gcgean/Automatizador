@@ -1,0 +1,20 @@
+import React,{useEffect,useState} from 'react';
+import {request} from './account.jsx';
+const blank=()=>({name:'',document:'',contact_email:'',active:true});
+export function CompanySelector({user,disabled}){
+ const [companies,setCompanies]=useState([]),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ useEffect(()=>{if(!user.platform_admin)return;const load=()=>request('/companies').then(setCompanies).catch(e=>setError(e.message));load();window.addEventListener('companies-updated',load);return()=>window.removeEventListener('companies-updated',load);},[user.company_id,user.platform_admin]);
+ async function select(companyId){setBusy(true);setError('');try{await request('/companies/select',{companyId});location.reload();}catch(e){setError(e.message);setBusy(false);}}
+ return <div className="company-selector">{user.platform_admin?<label>Empresa<select aria-label="Empresa atual" disabled={disabled||busy} value={user.company_id} onChange={e=>select(e.target.value)}>{companies.map(c=><option key={c.id} value={c.id}>{c.name}{c.active?'':' · suspensa'}</option>)}</select></label>:<span className="muted">{user.company_name}</span>}{error&&<span role="alert" className="error">{error}</span>}</div>;
+}
+export function Companies({user,disabled=false}){
+ const [items,setItems]=useState([]),[form,setForm]=useState(blank),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ async function load(){setItems(await request('/companies'));}
+ useEffect(()=>{load().catch(e=>setError(e.message));},[]);
+ async function save(e){e.preventDefault();setBusy(true);setError('');setNotice('');try{await request(form.id?'/companies/'+form.id:'/companies',form);await load();window.dispatchEvent(new Event('companies-updated'));setNotice(form.id?'Empresa atualizada.':'Empresa criada. Clique em Acessar para cadastrar seu administrador, contexto e conexões.');setForm(blank());}catch(e){setError(e.message);}finally{setBusy(false);}}
+ async function enter(id){setBusy(true);setError('');try{await request('/companies/select',{companyId:id});location.reload();}catch(e){setError(e.message);setBusy(false);}}
+ return <section aria-label="Cadastro de empresas"><div className="report-heading"><div><h2>Empresas clientes</h2><p className="muted">Você administra a plataforma. Cada empresa tem seus administradores, usuários, conexões e históricos.</p></div><button disabled={busy} onClick={()=>setForm(blank())}>Nova empresa</button></div>
+ {error&&<p role="alert" className="banner error">{error}</p>}{notice&&<p role="status" className="banner">{notice}</p>}
+ <div className="manage-grid"><section className="panel settings-panel"><h3>Empresas cadastradas</h3>{items.map(c=><article className="company-row" key={c.id}><div><strong>{c.name}</strong><p className="muted">{c.active?'Ativa':'Suspensa'}{c.id===user.company_id?' · Empresa atual':''}</p></div><div className="controls"><button className="secondary" disabled={busy} onClick={()=>setForm(c)}>Editar {c.name}</button><button disabled={disabled||busy||c.id===user.company_id} onClick={()=>enter(c.id)}>Acessar</button></div></article>)}</section>
+ <section className="panel settings-panel"><h3>{form.id?'Editar empresa':'Cadastrar empresa'}</h3><form className="settings-form" onSubmit={save}><label>Nome da empresa<input required maxLength={150} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Documento da empresa<input maxLength={30} value={form.document} onChange={e=>setForm({...form,document:e.target.value})}/></label><label>E-mail de contato<input type="email" maxLength={254} value={form.contact_email} onChange={e=>setForm({...form,contact_email:e.target.value})}/></label><label className="check-line"><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})}/>Empresa ativa</label><p className="muted">Suspender impede o acesso dos usuários e novos envios automáticos. Os dados são preservados. Para suspender a empresa atual, acesse outra primeiro.</p><button disabled={busy}>Salvar empresa</button></form></section></div></section>;
+}

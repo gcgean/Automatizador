@@ -41,19 +41,29 @@ Os testes de banco e navegador só aceitam o PostgreSQL local de testes na porta
 
 O administrador usa e-mail e senha. A senha é definida por um link de primeiro acesso, de uso único, válido por 24 horas. Não há cadastro público. Após entrar, a aba Minha senha permite alterá-la e encerrar as outras sessões. A chave técnica antiga não autentica APIs quando PostgreSQL está habilitado.
 
-## Produção neste computador
+## Produção Linux
 
-Pasta: `C:\Projetos\prod\agente-comercial`.
-
+Produção ativa na VPS `187.53.104.145`, pasta `/opt/command-comercial`.
 Painel: https://comercial.gestorfacil.ia.br.
 
-```powershell
-cd C:\Projetos\prod\agente-comercial
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-```
-
-PostgreSQL usa volume nomeado persistente e não publica porta externa. O backup faz `pg_dump` a cada 24 horas para `backups/`, com retenção de 14 dias. Guarde também cópias em outro dispositivo para proteção contra perda deste computador.
+A antiga pasta `C:\Projetos\prod\agente-comercial` está desativada; não iniciar seus containers.
+No servidor Linux, o serviço é gerenciado por `docker compose -f docker-compose.prod.yml`.
+PostgreSQL não publica porta externa. O backup diário guarda banco e mídia, com retenção de 14 dias; cópia contínua fora da VPS ainda deve ser configurada separadamente.
 
 - [Qualificação comercial e retorno dos anúncios à Meta](docs/anuncios-meta.md)
 - [Melhorar texto com IA no campo da conversa](docs/melhorar-texto.md)
+
+- [Conversas de vários números e cores](docs/conversas-multiplas-conexoes.md)
+- [Custos Meta por conexão](docs/custos-meta.md)
+
+- [Análise das conversas e sugestões de melhoria](docs/analise-conversas.md)
+
+- [Agendamento por botões e confirmação no WhatsApp](docs/agendamento-botoes.md)
+
+- [Empresas clientes e administradores por empresa](docs/empresas.md)
+
+- [Lembretes de apresentação 30 minutos antes](docs/lembretes-apresentacao.md)
+
+### CRM interno por empresa
+
+A aba CRM organiza oportunidades em um funil próprio, separado de Conversas e da integração externa. Consulte [CRM interno](docs/crm-interno.md) para permissões, indicadores e limites.

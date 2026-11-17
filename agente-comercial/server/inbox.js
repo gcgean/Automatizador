@@ -1,12 +1,13 @@
 import path from 'node:path';
 import {requestsOptOut} from './consent.js';
+import {acceptTicketMessage} from './tickets.js';
 
 // One server process owns this durable inbox. Processing interrupted by a crash
 // requires human review because an external send may already have happened.
 export class DurableInbox {
-  constructor({store, agent, log = console}) {
+  constructor({store, agent, beforeInbound, log = console}) {
     this.store = store;
-    this.agent = agent;
+    this.agent = agent;this.beforeInbound=beforeInbound;
     this.log = log;
     this.file = path.join(store.dataDir, 'inbox.json');
     this.jobs = {};
@@ -41,6 +42,7 @@ export class DurableInbox {
     if (typeof message.id !== 'string' || !message.id || !/^\d+$/.test(message.from || '')) {
       throw new Error('Mensagem recebida sem identificação válida.');
     }
+    if(!message.manual&&!message.followup)await this.beforeInbound?.(message);
     const key = Buffer.from(message.id).toString('base64url');
     if (!message.manual && requestsOptOut(message.text)) {
       await this.store.updateLead(message.from, {optedOut: true, status: 'bloqueado', optedOutAt: new Date().toISOString()});
@@ -50,7 +52,9 @@ export class DurableInbox {
       jobs[key] = {message, status: 'queued', receivedAt: new Date().toISOString()};
       return true;
     });
-    if (added) this.schedule(key);
+    if (added) {
+      this.schedule(key);
+    }
   }
 
   resume() {
@@ -69,7 +73,11 @@ export class DurableInbox {
       });
       if(!claimed)return;
       try {
-        await this.agent.enqueue(this.jobs[key].message);
+        const message=this.jobs[key].message;
+        let receipt;
+        if(!message.manual&&!message.followup&&!message.appointmentReminder&&this.store.scoped&&this.store.pool)receipt=await this.store.transaction(tx=>acceptTicketMessage(tx,message.from,message.id,message.at||message.timestamp||this.jobs[key].receivedAt));
+        if(receipt?.stale)await this.store.recordEvent({id:message.id,phone:message.from,direction:'in',text:message.text,source:'delayed_webhook',at:message.timestamp?new Date(Number(message.timestamp)*1000).toISOString():message.at||this.jobs[key].receivedAt});
+        else await this.agent.enqueue(message);
         await this.update(jobs => { jobs[key].status = 'done'; });
       } catch (error) {
         await this.update(jobs => {

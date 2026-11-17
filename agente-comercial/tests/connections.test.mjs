@@ -23,6 +23,10 @@ test('múltiplos números: isolamento de histórico, contexto, fila, credenciais
   const b=await registry.save({name:'Número B',phoneNumberId:'99887766',contextId:contextB.id,provider:'deepseek',accessToken:'private-token-B',appSecret:'c'.repeat(32)});
   await store.pool.query('UPDATE whatsapp_connections SET enabled=true WHERE id=$1',[b.id]);
   const list=JSON.stringify(await registry.list());assert.ok(!list.includes('private-token-B'));assert.ok(!list.includes('c'.repeat(32)));assert.ok(!(await store.pool.query('SELECT access_token_cipher FROM whatsapp_connections WHERE id=$1',[b.id])).rows[0].access_token_cipher.includes('private-token-B'));
+  const colored=await registry.save({...b,enabled:true,color:'#7c3aed'});assert.equal(colored.color,'#7c3aed');assert.equal(colored.enabled,true);
+  const withoutColor={...colored};delete withoutColor.color;assert.equal((await registry.save(withoutColor)).color,'#7c3aed');
+  await assert.rejects(registry.save({...colored,color:'red;display:none'}),/cor válida/);
+  await assert.rejects(store.pool.query('UPDATE whatsapp_connections SET color=$2 WHERE id=$1',[b.id,'invalid']),e=>e.code==='23514');
   const aRuntime=await registry.runtime('default'),bRuntime=await registry.runtime(b.id);
   for(const [runtime,expected] of [[aRuntime,'produto A'],[bRuntime,'produto B']])runtime.agent.providerFactory=()=>({name:'deepseek',complete:async({system})=>{assert.ok(system.includes(expected));return {append:[{role:'assistant',content:expected}],text:expected,toolCalls:[]};}});
   const payload=id=>({entry:[{changes:[{field:'messages',value:{metadata:{phone_number_id:id},messages:[{id:'same-message-id',from:'5511999990000',type:'text',text:{body:'Olá'}}]}}]}]});
@@ -32,8 +36,8 @@ test('múltiplos números: isolamento de histórico, contexto, fila, credenciais
   assert.equal((await aRuntime.store.getEvents('5511999990000'))[1].text,'produto A');assert.equal((await bRuntime.store.getEvents('5511999990000'))[1].text,'produto B');
   await aRuntime.store.updateLead('5511999990000',{temperatura:'quente',optedOut:true});assert.equal((await bRuntime.store.listLeads())['5511999990000']?.optedOut,undefined);
   const wrong=payload('99887766');await assert.rejects(registry.receive(wrong,Buffer.from(JSON.stringify(wrong)),'sha256='+'0'.repeat(64)),/signature/);
-  let analyses=0;const learning=new LearningService(store,registry,{providerFactory:()=>({complete:async()=>{analyses++;return {toolCalls:[{name:'propor_melhoria',input:{summary:'Exemplo sintético de análise.',suggestion:'Faça uma pergunta objetiva sobre a necessidade principal.',limitations:'A amostra não demonstra causalidade.'}}],text:''};}})});
-  assert.equal((await learning.analyze(b.id)).insufficient,true);assert.equal(analyses,0);
+  let analyses=0;const learning=new LearningService(store,registry,{providerFactory:()=>({complete:async()=>{analyses++;return {toolCalls:[{name:'propor_melhoria',input:{summary:'Exemplo sintético de análise.',suggestion:'Faça uma pergunta objetiva sobre a necessidade principal.',limitations:'A amostra não demonstra causalidade.',strengths:['Perguntas objetivas.'],opportunities:[]}}],text:''};}})});
+  assert.equal((await learning.analyze(b.id,{automatic:true})).insufficient,true);assert.equal(analyses,0);
   for(let n=0;n<10;n++){const phone='5521999900'+String(n).padStart(2,'0');await bRuntime.store.updateLead(phone,{nome:'QA',resultado:n===0?'ganho':'aberto'});for(let i=0;i<3;i++)await bRuntime.store.recordEvent({id:'out-'+n+'-'+i,phone,direction:'out',actor:'ai',text:'Teste de conversa',at:new Date(Date.now()-72*3600000+n*10000+i*1000).toISOString()});await bRuntime.store.recordEvent({id:'in-'+n,phone,direction:'in',text:'Tenho interesse',at:new Date(Date.now()-71*3600000+n*10000).toISOString()});}
   const proposed=await learning.analyze(b.id);assert.ok(proposed.id);assert.equal(analyses,1);
   const before=(await store.getConnection('default')).contextBody;

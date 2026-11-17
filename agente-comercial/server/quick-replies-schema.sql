@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS quick_replies(id uuid PRIMARY KEY,connection_id text NOT NULL REFERENCES whatsapp_connections(id),title text NOT NULL,shortcut text NOT NULL,body text NOT NULL DEFAULT '',media_id uuid REFERENCES media_attachments(id),version int NOT NULL DEFAULT 1,active boolean NOT NULL DEFAULT true,updated_by uuid REFERENCES users(id),created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX IF NOT EXISTS quick_replies_shortcut ON quick_replies(connection_id,shortcut) WHERE active;

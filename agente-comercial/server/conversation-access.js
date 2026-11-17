@@ -1,4 +1,4 @@
-export const canSeeLead=(user,lead)=>!user||user.role==='admin'||!lead?.assignedUserId||lead.assignedUserId===user.id;
+export const canSeeLead=(user,lead)=>!user||user.role==='admin'||((!lead?.assignedUserId||lead.assignedUserId===user.id)&&(!lead?.departmentId||(user.departmentIds||[]).includes(lead.departmentId)));
 export class ConversationAccess{
  constructor(store,user){this.store=store;this.user=user;}
  async allows(phone){return canSeeLead(this.user,await this.store.getLead(phone));}
@@ -10,4 +10,4 @@ export class ConversationAccess{
  }
 }
 // Keep report and export visibility in SQL so hidden conversations never affect totals or limits.
-export const visibilitySQL=(connection,phone,parameter)=>`NOT EXISTS (SELECT 1 FROM leads restricted WHERE restricted.connection_id=${connection} AND restricted.phone=${phone} AND NULLIF(NULLIF(restricted.data->>'assignedUserId','false'),'') IS NOT NULL AND restricted.data->>'assignedUserId'<>${parameter}::text)`;
+export const visibilitySQL=(connection,phone,parameter)=>`NOT EXISTS (SELECT 1 FROM leads restricted WHERE restricted.connection_id=${connection} AND restricted.phone=${phone} AND NULLIF(NULLIF(restricted.data->>'assignedUserId','false'),'') IS NOT NULL AND restricted.data->>'assignedUserId'<>${parameter}::text) AND NOT EXISTS (SELECT 1 FROM leads restricted WHERE restricted.connection_id=${connection} AND restricted.phone=${phone} AND NULLIF(NULLIF(restricted.data->>'departmentId','false'),'') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM department_users du WHERE du.department_id::text=restricted.data->>'departmentId' AND du.user_id::text=${parameter}::text))`;

@@ -1,0 +1,13 @@
+import React,{useEffect,useId,useState} from 'react';
+import {request} from './account.jsx';import {scoped} from './manage.jsx';
+import './quick-replies.css';
+const normalize=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+export function useQuickReplySuggestions({draft,connectionId,disabled,onChoose}){
+ const [items,setItems]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState(''),[focused,setFocused]=useState(0),[dismissed,setDismissed]=useState(false),id=useId(),active=!disabled&&/^\/[^\n]{0,60}$/.test(draft),query=normalize(draft.slice(1).trim()),matches=items.filter(r=>normalize(r.shortcut).includes(query)||normalize(r.title).includes(query)).slice(0,8);
+ useEffect(()=>{setFocused(0);setDismissed(false);setError('');},[draft]);
+ useEffect(()=>{if(!active)return;let current=true;setLoading(true);request(scoped('/quick-replies',connectionId)).then(v=>{if(current)setItems(v);}).catch(e=>{if(current)setError(e.message);}).finally(()=>{if(current)setLoading(false);});return()=>{current=false;};},[active,connectionId]);
+ function choose(item){if(!item)return;setDismissed(true);Promise.resolve(onChoose(item)).catch(e=>setError(e.message));}
+ function accept(e){if(!active)return false;e.preventDefault();e.stopPropagation();const exact=matches.find(r=>r.shortcut===query);if(exact||matches[focused]||matches[0])choose(exact||matches[focused]||matches[0]);else setError('Nenhuma mensagem rápida encontrada para esse atalho.');return true;}
+ function keyDown(e){if(!active)return false;if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent?.isComposing)return accept(e);if(e.key==='Escape'){e.preventDefault();setDismissed(true);return true;}if(['ArrowDown','ArrowUp'].includes(e.key)&&matches.length){e.preventDefault();setFocused(n=>(n+(e.key==='ArrowDown'?1:matches.length-1))%matches.length);return true;}return false;}
+ return {active,id,keyDown,submit:accept,panel:active&&!dismissed?<div className="quick-suggestions" role="listbox" id={id} aria-label="Mensagens rápidas"><strong>Mensagens rápidas · confira antes de enviar</strong>{loading?<p>Carregando…</p>:matches.length?matches.map((item,index)=><button key={item.id} type="button" role="option" aria-selected={index===focused} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(item)}><span>/{item.shortcut}</span><strong>{item.title}</strong><small>{item.attachment?'Com arquivo · '+item.attachment.name:item.body.slice(0,90)}</small></button>):<p>Nenhum atalho encontrado. O cadastro fica em Configurações → Mensagens rápidas.</p>}{error&&<p role="alert" className="error">{error}</p>}</div>:error?<p role="alert" className="composer-feedback error">{error}</p>:null};
+}

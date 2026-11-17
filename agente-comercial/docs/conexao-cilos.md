@@ -13,3 +13,9 @@ CRM, agenda e cadência são configurações por conexão. Elas não são copiad
 ![Comercial Cilos](assets/logo-cilos-comercial.jpg)
 
 As credenciais locais ficam em `server/.env.cilos`, fora do Git. Não publique o documento original de transferência, pois ele contém um PIN. A integração usa as credenciais criptografadas no banco de produção; o arquivo local não substitui o `.env` principal do servidor.
+
+## Cadastro em coexistência
+
+Configure META_EMBEDDED_SIGNUP_CONFIG_ID no servidor com a configuração de Login do Facebook para Empresas do app comercial. Se o app for diferente do padrão do servidor, defina também META_EMBEDDED_SIGNUP_APP_ID e META_EMBEDDED_SIGNUP_APP_SECRET para esse mesmo app. Autorize o domínio do painel na Meta. Para o aplicativo com callback compartilhado, confira os campos messages, smb_message_echoes, smb_app_state_sync e history na assinatura existente.
+
+Em Configurações → Conexões e contextos → Nova conexão, escolha “Usar WhatsApp Business do celular”, informe nome, contexto e IA e clique em “Conectar com a Meta”. O titular confirma o vínculo no aplicativo. O servidor confere a WABA e o número, salva o token criptografado e solicita a sincronização durante a ativação. Se a validação falhar após salvar, abra a conexão e use “Validar Meta e ativar”. O conteúdo importado depende da autorização de compartilhamento e da entrega pela Meta.

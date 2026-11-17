@@ -1,3 +1,17 @@
+import {ServerMonitor} from './server-monitor.js';
+import {telemetry,accumulate,routeLabel} from './telemetry.js';
+import {listAttendances,ticketHistory,listDepartments,saveDepartment,transferTicket} from './tickets.js';
+import {connectBusinessApp} from './coexistence.js';
+import {MetaAds} from './meta-ads.js';
+import {Pipeline} from './pipeline.js';
+import {Reengagement} from './reengagement.js';
+import {QuickReplies} from './quick-replies.js';
+import {BrowserPush} from './browser-push.js';
+import {ConsultantRouting} from './consultant-routing.js';
+import {setConversationClosed} from './conversation-lifecycle.js';
+import {AppointmentReminders} from './appointment-reminders.js';
+import {Companies} from './companies.js';
+import {MetaCosts} from './meta-costs.js';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import {pathToFileURL} from 'node:url';
@@ -31,11 +45,18 @@ import {DurableInbox} from './inbox.js';
 
 const MAX_BODY = 1024 * 1024;
 
-export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, simulation, crm, cadence, media, calling, meta, textImprover, log = console}) {
+export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, reminders, simulation, crm, cadence, media, calling, meta, textImprover, reengagement, pipeline, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
+  const companies=auth&&rootStore.pool?new Companies(rootStore):null;
+  const metaCosts=registry?new MetaCosts(registry):null;
+  const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
+  const quickReplies=registry&&media?new QuickReplies(rootStore,media):null;
+  const push=registry&&rootStore.pool?(registry.push||new BrowserPush(rootStore,registry.config,auth)):null;
+  const routing=registry&&rootStore.pool?(registry.routing||new ConsultantRouting(rootStore)):null;
   return async function handler(req, res) {
     let store=rootStore,inbox=baseInbox,access=null,tags=null;
     const url = new URL(req.url, 'http://localhost');
+    const started=performance.now();if(telemetry.enabled&&url.pathname!=='/server-monitor')res.once('finish',()=>accumulate(telemetry.requests,JSON.stringify([req.monitorConnectionId||'shared',routeLabel(req.method,url.pathname)]),performance.now()-started,res.statusCode>=500));
     try {
       res.setHeader('Cache-Control', 'no-store');
       if (await servePanel(req, res, url.pathname)) return;
@@ -54,7 +75,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       }
 
       if (req.method === 'POST' && url.pathname === '/webhook') {
-        const raw = await readBody(req);
+        const raw = await readBody(req,16*1024*1024);
         if(registry){let payload;try{payload=JSON.parse(raw.toString('utf8'));}catch{return send(res,400,'invalid JSON');}await registry.receive(payload,raw,req.headers['x-hub-signature-256']);return send(res,200,'ok');}
         if (!verifySignature(raw, req.headers['x-hub-signature-256'], config.appSecret)) return send(res, 401, 'invalid signature');
         let payload;
@@ -71,13 +92,71 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       const authorized = () => auth ? !!currentUser : config.panelToken && req.headers.authorization === `Bearer ${config.panelToken}`;
       if (auth && req.method === 'POST' && !auth.sameOrigin(req)) return send(res,403,'Origem da solicitação inválida.');
       const administrator=!auth||currentUser?.role==='admin';
+      const companyId=currentUser?.company_id||'default';
+      if(url.pathname==='/server-monitor'){if(!currentUser?.platform_admin||!rootStore.monitor)return send(res,403,'Monitoramento exclusivo do administrador da plataforma.');if(req.method!=='GET')return send(res,405,'Método não permitido.');return send(res,200,await rootStore.monitor.report(url.searchParams.get('days')==='7'?7:1,url.searchParams.get('filterConnection')||null));}
+      if(url.pathname.startsWith('/push/')){
+        if(!currentUser||!push)return send(res,401,'unauthorized');
+        const body=req.method==='POST'?JSON.parse((await readBody(req)).toString()):{};
+        if(url.pathname==='/push/status'&&req.method==='POST')return send(res,200,await push.status(currentUser,body.endpoint,auth.cookie(req)));
+        if(url.pathname==='/push/subscribe'&&req.method==='POST')return send(res,200,await push.subscribe(currentUser,body,auth.cookie(req)));
+        if(url.pathname==='/push/unsubscribe'&&req.method==='POST')return send(res,200,await push.unsubscribe(currentUser,body.endpoint));
+        return send(res,404,'not found');
+      }
+      if(url.pathname==='/business-hours'||url.pathname==='/handoff/presence'||url.pathname.startsWith('/notifications')){
+        if(!currentUser||!routing)return send(res,401,'unauthorized');
+        if(url.pathname==='/business-hours'){if(!administrator)return send(res,403,'Somente administradores configuram o expediente.');if(req.method==='GET')return send(res,200,await routing.settings(companyId));if(req.method==='POST')return send(res,200,await routing.save(currentUser,JSON.parse((await readBody(req)).toString())));}
+        if(url.pathname==='/handoff/presence'&&req.method==='POST')return send(res,200,await routing.presence(currentUser,JSON.parse((await readBody(req)).toString())));
+        if(url.pathname==='/notifications'&&req.method==='GET')return send(res,200,await routing.notifications(currentUser));
+        const notification=url.pathname.match(/^\/notifications\/([a-f0-9-]{36})$/i);if(notification&&req.method==='GET'){const item=(await routing.notifications(currentUser,notification[1]))[0];return item?send(res,200,item):send(res,404,'Notificação indisponível nesta empresa ou usuário.');}
+        const read=url.pathname.match(/^\/notifications\/([a-f0-9-]{36})\/read$/i);if(read&&req.method==='POST')return send(res,200,await routing.read(currentUser,read[1]));
+        return send(res,404,'not found');
+      }
+      if(companies&&url.pathname.startsWith('/companies')){
+        if(!currentUser)return send(res,401,'unauthorized');
+        if(url.pathname==='/companies'&&req.method==='GET')return send(res,200,await companies.list(currentUser));
+        if(url.pathname==='/companies/select'&&req.method==='POST')return send(res,200,await auth.selectCompany(req,JSON.parse((await readBody(req)).toString()).companyId));
+        if(url.pathname==='/companies'&&req.method==='POST')return send(res,201,await companies.save(JSON.parse((await readBody(req)).toString()),currentUser));
+        const companyRoute=url.pathname.match(/^\/companies\/([a-zA-Z0-9-]{1,80})$/);
+        if(companyRoute&&req.method==='POST')return send(res,200,await companies.save(JSON.parse((await readBody(req)).toString()),currentUser,companyRoute[1]));
+        return send(res,404,'not found');
+      }
+      if(companies&&currentUser&&!(await rootStore.pool.query('SELECT 1 FROM companies WHERE id=$1 AND active',[companyId])).rowCount)return send(res,403,'Empresa suspensa. Selecione outra empresa para continuar.');
       const permission=requiredPermission(url.pathname,req.method);
       if(auth&&currentUser&&permission&&!can(currentUser,permission))return send(res,403,'Seu acesso não permite esta função.');
+      if(pipeline&&/^\/pipeline(?:\/|$)/.test(url.pathname)){
+        if(!currentUser)return send(res,401,'unauthorized');
+        if(url.pathname==='/pipeline'&&req.method==='GET')return send(res,200,await pipeline.list(currentUser,{status:url.searchParams.get('status'),search:url.searchParams.get('search'),owner:url.searchParams.get('owner'),connection:url.searchParams.get('connection')}));
+        if(url.pathname==='/pipeline'&&req.method==='POST')return send(res,201,await pipeline.save(JSON.parse((await readBody(req)).toString()),currentUser));
+        if(url.pathname==='/pipeline/stages'&&req.method==='POST')return send(res,200,await pipeline.stages(JSON.parse((await readBody(req)).toString()),currentUser));
+        const opportunity=url.pathname.match(/^\/pipeline\/([a-f0-9-]{36})(\/notes)?$/i);
+        if(opportunity&&req.method==='GET'&&!opportunity[2])return send(res,200,await pipeline.detail(opportunity[1],currentUser));
+        if(opportunity&&req.method==='POST')return send(res,200,opportunity[2]?await pipeline.note(opportunity[1],JSON.parse((await readBody(req)).toString()),currentUser):await pipeline.save(JSON.parse((await readBody(req)).toString()),currentUser,opportunity[1]));
+        return send(res,404,'not found');
+      }
+      if(/^\/meta-ads(?:\/|$)/.test(url.pathname)){
+        if(!authorized())return send(res,401,'unauthorized');
+        if(!administrator)return send(res,403,'Custos de anúncios são exclusivos de administradores.');
+        if(!metaAds||!currentUser)return send(res,503,'Configure as empresas e conexões.');
+        if(url.pathname==='/meta-ads/settings'&&req.method==='GET')return send(res,200,await metaAds.settings(currentUser));
+        if(url.pathname==='/meta-ads/settings'&&req.method==='POST')return send(res,200,await metaAds.save(currentUser,JSON.parse((await readBody(req)).toString())));
+        if(url.pathname==='/meta-ads/campaigns'&&req.method==='GET')return send(res,200,await metaAds.campaigns(currentUser));
+        if(url.pathname==='/meta-ads/scopes'&&req.method==='POST')return send(res,200,await metaAds.saveScopes(currentUser,JSON.parse((await readBody(req)).toString())));
+        if(url.pathname==='/meta-ads/accounts'&&req.method==='GET')return send(res,200,await metaAds.accounts(currentUser,url.searchParams.get('connectionId')));
+        if(url.pathname==='/meta-ads'&&req.method==='GET')return send(res,200,await metaAds.report(currentUser,{from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:(url.searchParams.get('connections')||'').split(',').filter(Boolean)}));
+        return send(res,404,'not found');
+      }
+      if(url.pathname==='/meta-costs'&&req.method==='GET'){
+        if(!authorized())return send(res,401,'unauthorized');
+        if(!administrator)return send(res,403,'Custos da Meta são exclusivos de administradores.');
+        if(!metaCosts)return send(res,503,'Configure as conexões para consultar os custos.');
+        const ids=(url.searchParams.get('connections')||'').split(',').filter(Boolean);
+        return send(res,200,await metaCosts.report({from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:ids,companyId:companies?companyId:undefined}));
+      }
       if(auth&&currentUser&&url.pathname.startsWith('/access-groups')){
         if(!administrator)return send(res,403,'Apenas administradores podem gerenciar acessos.');
         const groups=new AccessGroups(rootStore);
         if(url.pathname==='/access-groups/catalog'&&req.method==='GET')return send(res,200,PERMISSION_SECTIONS);
-        if(url.pathname==='/access-groups'&&req.method==='GET')return send(res,200,await groups.list());
+        if(url.pathname==='/access-groups'&&req.method==='GET')return send(res,200,await groups.list(companyId));
         if(url.pathname==='/access-groups'&&req.method==='POST')return send(res,201,await groups.save(JSON.parse((await readBody(req)).toString()),currentUser));
         const match=url.pathname.match(/^\/access-groups\/([a-f0-9-]{36})$/i);if(match&&req.method==='POST')return send(res,200,await groups.save(JSON.parse((await readBody(req)).toString()),currentUser,match[1]));
         return send(res,404,'not found');
@@ -85,7 +164,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       if(users&&url.pathname.startsWith('/users')){
         if(!currentUser)return send(res,401,'unauthorized');
         if(!administrator)return send(res,403,'Apenas administradores podem gerenciar usuários.');
-        if(url.pathname==='/users'&&req.method==='GET')return send(res,200,await users.list());
+        if(url.pathname==='/users'&&req.method==='GET')return send(res,200,await users.list(companyId,currentUser));
         if(url.pathname==='/users'&&req.method==='POST')return send(res,201,await users.save(JSON.parse((await readBody(req)).toString()),currentUser));
         const userRoute=url.pathname.match(/^\/users\/([a-f0-9-]{36})(\/invitation)?$/i);
         if(userRoute&&req.method==='POST')return send(res,200,userRoute[2]?await users.reset(userRoute[1],currentUser):await users.save(JSON.parse((await readBody(req)).toString()),currentUser,userRoute[1]));
@@ -95,26 +174,34 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
 
       if(registry){
         if(!authorized())return send(res,401,'unauthorized');
+        if(url.pathname==='/connections/business-app'){
+          if(!administrator)return send(res,403,'Apenas administradores conectam números.');
+          if(req.method==='GET')return send(res,200,{appId:config.signupAppId,configId:config.signupConfigId,version:config.graphVersion});
+          if(req.method==='POST')return send(res,201,await connectBusinessApp(registry,JSON.parse((await readBody(req)).toString()),companyId));
+        }
         if(url.pathname==='/connections' && req.method==='GET'){
-          const all=await registry.list();
-          return send(res,200,administrator?all:all.filter(c=>currentUser.connections.includes(c.id)).map(c=>can(currentUser,'connections.manage')?c:({id:c.id,name:c.name,displayPhone:c.displayPhone,enabled:c.enabled,provider:c.provider})));
+          const all=(await registry.list()).filter(c=>c.companyId===companyId);
+          return send(res,200,administrator?all:all.filter(c=>currentUser.connections.includes(c.id)).map(c=>can(currentUser,'connections.manage')?c:({id:c.id,name:c.name,color:c.color,displayPhone:c.displayPhone,enabled:c.enabled,provider:c.provider})));
         }
         if(url.pathname==='/connections' && req.method==='POST'&&!administrator)return send(res,403,'A criação e edição de conexões exige administrador.');
-        if(url.pathname==='/connections' && req.method==='POST')return send(res,200,await registry.save(JSON.parse((await readBody(req)).toString())));
+        if(url.pathname==='/connections' && req.method==='POST')return send(res,200,await registry.save(JSON.parse((await readBody(req)).toString()),companyId));
         const activate=url.pathname.match(/^\/connections\/([a-zA-Z0-9-]+)\/activate$/);
         if(activate&&req.method==='POST'&&!administrator&&!currentUser.connections.includes(activate[1]))return send(res,403,'Você não tem acesso a esta conexão.');
+        if(activate&&req.method==='POST'){if(companies)await companies.assertConnection(companyId,activate[1]);}
         if(activate&&req.method==='POST')return send(res,200,await registry.activate(activate[1]));
-        if(url.pathname==='/contexts'&&req.method==='GET')return send(res,200,administrator?await store.listContexts():(await store.listContexts()).filter(c=>false));
+        if(url.pathname==='/contexts'&&req.method==='GET')return send(res,200,administrator?await store.listContexts(companyId):(await store.listContexts(companyId)).filter(c=>false));
         if(url.pathname==='/contexts'&&req.method==='POST'){
           if(!administrator)return send(res,403,'Gerenciar contextos compartilhados exige administrador.');
           const body=JSON.parse((await readBody(req)).toString());
           if(typeof body.name!=='string'||!body.name.trim()||body.name.length>100||typeof body.body!=='string'||!body.body.trim()||body.body.length>40000)return send(res,400,'Informe nome e contexto (até 40.000 caracteres).');
           if(body.id&&(typeof body.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(body.id)))return send(res,400,'Identificador inválido.');
-          return send(res,200,await store.saveContext(body.id,body.name.trim(),body.body));
+          return send(res,200,await store.saveContext(body.id,body.name.trim(),body.body,'operator',companyId));
         }
-        const connectionId=url.searchParams.get('connection')||'default';
+        if(url.pathname==='/departments'){if(req.method==='GET')return send(res,200,await listDepartments(rootStore,companyId));if(req.method==='POST')return send(res,200,await saveDepartment(rootStore,companyId,JSON.parse((await readBody(req)).toString())));}
+        const connectionId=url.searchParams.get('connection')||(companies?(await registry.list()).find(c=>c.companyId===companyId)?.id:'default')||'default';
         if(!administrator&&!currentUser.connections.includes(connectionId))return send(res,403,'Você não tem acesso a esta conexão.');
-        const runtime=await registry.runtime(connectionId);store=runtime.store;inbox=runtime.inbox;
+        if(companies)await companies.assertConnection(companyId,connectionId);
+        req.monitorConnectionId=connectionId;const runtime=await registry.runtime(connectionId);store=runtime.store;inbox=runtime.inbox;
         access=new ConversationAccess(store,currentUser);tags=new TagService(store);
         const phoneRoute=url.pathname.match(/^\/(?:leads|conversations)\/(\d+)(?:\/|$)/);
         if(phoneRoute)await access.assert(phoneRoute[1]);
@@ -126,6 +213,14 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(guardedCall&&calling){const row=(await store.pool.query('SELECT phone FROM whatsapp_calls WHERE connection_id=$1 AND id=$2',[connectionId,guardedCall[1]])).rows[0];if(row)await access.assert(row.phone);}
         const guardedReview=url.pathname.match(/^\/agenda\/review\/([a-f0-9-]{36})$/i);
         if(guardedReview){const row=(await store.pool.query('SELECT phone FROM agenda_bookings WHERE connection_id=$1 AND id=$2',[connectionId,guardedReview[1]])).rows[0];if(row)await access.assert(row.phone);}
+        if(url.pathname.startsWith('/quick-replies')){
+          if(!currentUser||!quickReplies)return send(res,503,'Mensagens rápidas exigem usuário autenticado e armazenamento de arquivos.');
+          if(url.pathname==='/quick-replies'&&req.method==='GET')return send(res,200,await quickReplies.list(connectionId,currentUser));
+          if(url.pathname==='/quick-replies'&&req.method==='POST')return send(res,201,await quickReplies.save(connectionId,currentUser,JSON.parse((await readBody(req)).toString())));
+          if(url.pathname==='/quick-replies/upload'&&req.method==='POST'){let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do arquivo inválidos.');}return send(res,201,await quickReplies.upload(connectionId,currentUser,meta,req));}
+          const item=url.pathname.match(/^\/quick-replies\/([a-f0-9-]{36})(\/remove)?$/i);if(item&&req.method==='POST'){const body=JSON.parse((await readBody(req)).toString());return send(res,200,item[2]?await quickReplies.remove(connectionId,currentUser,item[1],body.version):await quickReplies.save(connectionId,currentUser,body,item[1]));}
+          return send(res,404,'not found');
+        }
         if(url.pathname==='/tags'&&req.method==='GET')return send(res,200,await tags.list());
         if(url.pathname==='/tags'&&req.method==='POST')return send(res,201,await tags.create(JSON.parse((await readBody(req)).toString())));
         const leadTags=url.pathname.match(/^\/leads\/(\d+)\/tags$/);
@@ -145,18 +240,22 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           return send(res,404,'not found');
         }
 
+        if(url.pathname==='/attendances'&&req.method==='GET'){const items=await listAttendances(store,currentUser),decorated=await tags.decorate(Object.fromEntries(items.map(t=>[t.telefone,t])));return send(res,200,items.map(t=>({...t,tags:decorated[t.telefone]?.tags||[]})));}
+        const ticketRoute=url.pathname.match(/^\/leads\/(\d+)\/tickets$/);
+        if(ticketRoute&&req.method==='GET')return send(res,200,await ticketHistory(store,ticketRoute[1]));
+        if(url.pathname==='/ticket-departments'&&req.method==='GET')return send(res,200,(await listDepartments(store,companyId,connectionId)).filter(d=>d.active));
         if(url.pathname==='/attendants'&&req.method==='GET'){
-          const candidates=(await rootStore.pool.query("SELECT id FROM users WHERE active AND password_hash IS NOT NULL ORDER BY name,email")).rows,allowed=[];
-          for(const c of candidates){const person=await auth.identity(c.id);if(person&&(person.role==='admin'||person.connections.includes(connectionId))&&can(person,'messages.send'))allowed.push({id:person.id,name:person.name||person.email});}
+          const candidates=(await rootStore.pool.query("SELECT id FROM users WHERE active AND password_hash IS NOT NULL AND company_id=$1 ORDER BY name,email",[companyId])).rows,allowed=[];
+          for(const c of candidates){const person=await auth.identity(c.id);if(person&&(person.company_id||'default')===companyId&&(person.role==='admin'||person.connections.includes(connectionId))&&can(person,'messages.send'))allowed.push({id:person.id,name:person.name||person.email});}
           return send(res,200,allowed);
         }
+        const conversationState=url.pathname.match(/^\/leads\/(\d+)\/conversation-state$/);
+        if(conversationState&&req.method==='POST'){if(!currentUser)return send(res,401,'unauthorized');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await setConversationClosed(store,conversationState[1],body.closed,currentUser,inbox?.jobs,body.ticketId));}
         const transfer=url.pathname.match(/^\/leads\/(\d+)\/transfer$/);
         if(transfer&&req.method==='POST'){
           const body=JSON.parse((await readBody(req)).toString()),person=/^[-a-f0-9]{36}$/i.test(body.userId||'')?await auth.identity(body.userId):null;
-          if(!person||!(await rootStore.pool.query('SELECT 1 FROM users WHERE id=$1 AND password_hash IS NOT NULL',[person?.id])).rowCount||!(person.role==='admin'||person.connections.includes(connectionId))||!can(person,'messages.send'))return send(res,400,'Escolha um atendente ativo com acesso à conexão e permissão de resposta.');
-          const lead=await store.getLead(transfer[1]);if(!lead)return send(res,404,'Contato não encontrado.');if(lead.optedOut||['ganho','perdido'].includes(lead.resultado))return send(res,409,'Reabra o atendimento antes de transferir este contato.');
-          await store.updateLead(transfer[1],{status:'encaminhado',humanControlId:crypto.randomUUID(),assignedUserId:person.id,assignedUserName:person.name||person.email});if(cadence)await cadence.stop(connectionId,transfer[1],'Transferido para atendente humano');
-          await store.recordEvent({id:crypto.randomUUID(),phone:transfer[1],direction:'out',actor:'system',kind:'handoff',state:'internal',text:'Atendimento transferido para '+(person.name||person.email)+'.'});await store.audit('conversation_transferred',currentUser.id,{phone:transfer[1],assignedUserId:person.id});return send(res,200,{ok:true});
+          if(body.userId&&(!person||(person.company_id||'default')!==companyId||!(await rootStore.pool.query('SELECT 1 FROM users WHERE id=$1 AND password_hash IS NOT NULL',[person?.id])).rowCount||!(person.role==='admin'||person.connections.includes(connectionId))||!can(person,'messages.send')))return send(res,400,'Escolha um atendente ativo com acesso à conexão e permissão de resposta.');
+          const result=await transferTicket(store,transfer[1],body,person,currentUser);if(cadence)await cadence.stop(connectionId,transfer[1],'Transferido para atendente humano');return send(res,200,result);
         }
         const avatarRoute=url.pathname.match(/^\/leads\/(\d+)\/(avatar|avatar-upload)$/);
         if(media&&avatarRoute&&req.method==='POST'){
@@ -166,7 +265,12 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           await store.updateLead(phone,{avatarAttachmentId:body.attachmentId||false});return send(res,200,{ok:true});
         }
         const fileRoute=url.pathname.match(/^\/media\/([a-f0-9-]{36})$/i);if(media&&fileRoute&&req.method==='GET'){await access.assert((await media.get(fileRoute[1],connectionId)).phone);return await media.serve(req,res,fileRoute[1],connectionId);}
-        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){if(blockingJob(inbox?.jobs,uploadRoute[1]))return send(res,409,'Há um envio anterior sem confirmação. Confira a pendência deste contato antes de enviar outro anexo.');const lead=await store.getLead(uploadRoute[1]);if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,operator:currentUser?{id:currentUser.id,name:currentUser.name||currentUser.email,administrator}:undefined,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
+        const uploadRoute=url.pathname.match(/^\/leads\/(\d+)\/media$/);if(media&&uploadRoute&&req.method==='POST'){if(blockingJob(inbox?.jobs,uploadRoute[1]))return send(res,409,'Há um envio anterior sem confirmação. Confira a pendência deste contato antes de enviar outro anexo.');const lead=await store.getLead(uploadRoute[1]);if(lead?.conversationClosed)return send(res,409,'Reabra a conversa antes de enviar anexos.');if(!lead||lead.optedOut)return send(res,409,'Contato ausente ou bloqueado.');const events=await store.getEvents(uploadRoute[1]);if(!events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)<86400000))return send(res,409,'Janela de atendimento encerrada para envio de anexo.');let meta;try{meta=JSON.parse(decodeURIComponent(req.headers['x-media-meta']||''));}catch{return send(res,400,'Metadados do anexo inválidos.');}const a=await media.outgoing(connectionId,uploadRoute[1],meta,req);await inbox.accept({id:'media-'+a.id,from:uploadRoute[1],manual:true,operator:currentUser?{id:currentUser.id,name:currentUser.name||currentUser.email,administrator}:undefined,attachmentId:a.id,text:a.caption||'Anexo: '+a.name});return send(res,202,{ok:true,id:a.id});}
+        const reengageRoute=url.pathname.match(/^\/leads\/(\d+)\/reengage$/);
+        if(reengagement&&reengageRoute){if(!currentUser)return send(res,401,'unauthorized');if(req.method==='GET')return send(res,200,await reengagement.preview(connectionId,reengageRoute[1],currentUser));if(req.method==='POST')return send(res,202,await reengagement.enqueue(connectionId,reengageRoute[1],JSON.parse((await readBody(req)).toString()),currentUser));}
+        if(reminders&&url.pathname==='/agenda/reminders/settings'&&req.method==='GET')return send(res,200,await reminders.settings(connectionId));
+        if(reminders&&url.pathname==='/agenda/reminders/settings'&&req.method==='POST')return send(res,200,await reminders.configure(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
+        if(reminders&&url.pathname==='/agenda/reminders'&&req.method==='GET')return send(res,200,await access.filter(await reminders.list(connectionId)));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='GET')return send(res,200,await cadence.settings(connectionId));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='POST')return send(res,200,await cadence.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
         if(cadence&&url.pathname==='/cadence/templates'&&req.method==='GET')return send(res,200,await cadence.templates(connectionId));
@@ -293,6 +397,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if (!authorized()) return send(res, 401, 'unauthorized');
         const body = JSON.parse((await readBody(req)).toString('utf8'));
         if (typeof body.enabled !== 'boolean') return send(res, 400, 'Informe enabled booleano');
+        if((await store.listLeads())[automation[1]]?.conversationClosed)return send(res,409,'Reabra a conversa antes de alterar a IA.');
         if ((await store.listLeads())[automation[1]]?.optedOut && body.enabled) return send(res, 409, 'Contato bloqueado por descadastro.');
         const lead = await store.updateLead(automation[1], {status: body.enabled ? 'em_conversa' : 'encaminhado',humanControlId:crypto.randomUUID(),...(body.enabled?{assignedUserId:false,assignedUserName:false}:{})});
         return send(res, 200, lead);
@@ -301,7 +406,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       const conversationRoute = url.pathname.match(/^\/conversations\/(\d+)$/);
       if (req.method === 'GET' && conversationRoute) {
         if (!authorized()) return send(res, 401, 'unauthorized');
-        return send(res, 200, await store.getEvents(conversationRoute[1]));
+        return send(res, 200, await (store.conversationEvents?.(conversationRoute[1]) ?? store.getEvents(conversationRoute[1])));
       }
       const blockRoute = url.pathname.match(/^\/leads\/(\d+)\/block$/);
       if (req.method === 'POST' && blockRoute) {
@@ -325,6 +430,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if (typeof body.text !== 'string' || !body.text.trim() || body.text.length > 4000 || !/^[a-zA-Z0-9-]{16,80}$/.test(body.requestId || '')) return send(res, 400, 'Mensagem ou identificador inválido.');
         const phone = replyRoute[1];if(blockingJob(inbox.jobs,phone))return send(res,409,'Há um envio anterior sem confirmação neste atendimento. Confira a pendência da conversa antes de enviar novamente.');
         const currentLead=(await store.listLeads())[replyRoute[1]];
+        if(currentLead?.conversationClosed)return send(res,409,'Reabra a conversa antes de enviar mensagens.');
         if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
         if (!events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');
@@ -388,14 +494,14 @@ export function reportPeriod(url){
 }
 
 const requestBodies=new WeakMap();
-function readBody(req) {
+function readBody(req,limit=MAX_BODY) {
   if(requestBodies.has(req))return requestBodies.get(req);
   const pending=new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     req.on('data', chunk => {
       size += chunk.length;
-      if (size > MAX_BODY) { reject(Object.assign(new Error('payload too large'), {status: 413})); req.destroy(); return; }
+      if (size > limit) { reject(Object.assign(new Error('payload too large'), {status: 413})); req.destroy(); return; }
       chunks.push(chunk);
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
@@ -412,11 +518,14 @@ async function main() {
   if (!config.panelOnly) assertReady(config);
   const store = config.databaseUrl ? new PgStore(config.databaseUrl,config.dataDir) : new Store(config.dataDir);
   await store.init({workerLock:true});
+  if(config.databaseUrl){store.monitor=new ServerMonitor(store,config.dataDir);await store.monitor.init();}
   const auth=config.databaseUrl?new PasswordAuth(store,config):null;
   if(auth)await auth.init();
   if(config.databaseUrl && !/^[a-f0-9]{64}$/i.test(config.connectionsKey||''))throw new Error('Configure CONNECTIONS_ENCRYPTION_KEY para proteger as conexões.');
   const agenda=config.databaseUrl?new AgendaService(store,config):null;
   if(agenda)await agenda.init();
+  const reminders=agenda?new AppointmentReminders(store,agenda):null;
+  if(reminders)await reminders.init();
   const crm=config.databaseUrl?new CrmService(store,config):null;
   if(crm)await crm.init();
   const cadence=config.databaseUrl?new CadenceService(store,config):null;
@@ -425,10 +534,12 @@ async function main() {
   if(media)await media.init();
   const calling=config.databaseUrl?new CallingService(store,config):null;
   if(calling)await calling.init();
-  const registry=config.databaseUrl?new ConnectionRegistry(store,config,{agenda,crm,cadence,media,calling}):null;
-  calling?.bind(registry);
+  const registry=config.databaseUrl?new ConnectionRegistry(store,config,{agenda,crm,cadence,reminders,media,calling}):null;
+  calling?.bind(registry);reminders?.bind(registry);
   cadence?.bind(registry);media?.bind(registry);
-  if(registry)await registry.init();
+  const reengagement=registry?new Reengagement(store,registry,cadence,auth):null;
+  const pipeline=registry?new Pipeline(store,auth):null;
+  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.reengagement=reengagement;registry.pipeline=pipeline;await registry.init();await pipeline.init();}
   const meta=registry?new MetaConversions(store,registry):null;
   const textImprover=registry?new TextImprover(store):null;
   if(meta){await meta.init();registry.meta=meta;if(crm)crm.deals.meta=meta;}
@@ -439,13 +550,15 @@ async function main() {
   const agent = new SalesAgent({config, store, whatsapp});
   const inbox = registry?(await registry.runtime('default')).inbox:new DurableInbox({store, agent});
   if(!registry){await inbox.init();if (!config.panelOnly) inbox.resume();}
+  if(reminders&&!config.panelOnly)reminders.start();
   if(crm&&!config.panelOnly)crm.start();
   if(cadence&&!config.panelOnly)cadence.start();
   const learningTimer=learning?setInterval(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),3600000):null;
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
+  const pushTimer=registry&&!config.panelOnly?setInterval(()=>registry.push.tick().catch(()=>console.error('[push] Falha ao processar notificações.')),10000):null;
   const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
-  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,simulation,crm,cadence,media,calling,meta,textImprover})).listen(config.port, config.host, () => {
+  const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,reminders,simulation,crm,cadence,media,calling,meta,textImprover,reengagement,pipeline})).listen(config.port, config.host, () => {
     console.log(`Agente comercial ouvindo na porta ${config.port}. Webhook: /webhook`);
     store.getSettings().then(s => {
       const name = s.aiProvider || config.aiProvider;
@@ -455,7 +568,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{if(registry)await registry.drain();else await inbox.drain();await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(pushTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }
