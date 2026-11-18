@@ -87,3 +87,4 @@ CREATE TABLE IF NOT EXISTS ticket_closure_reasons (
 );
 CREATE INDEX IF NOT EXISTS ticket_closure_reason_idx ON ticket_closure_reasons(reason_id);
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS require_closure_reason boolean NOT NULL DEFAULT false;
+ALTER TABLE closure_reasons ADD COLUMN IF NOT EXISTS created_by_ai boolean NOT NULL DEFAULT false;

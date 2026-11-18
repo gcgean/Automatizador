@@ -32,8 +32,8 @@ export class ClosureReasons{
  constructor(pool){this.pool=pool;}
  async list(companyId,all=false){
   for(const key of Object.keys(SYSTEM_REASONS))await systemReason(this.pool,companyId,key);
-  const [{rows},{rows:[company]}]=await Promise.all([this.pool.query(`SELECT id,name,active,system_key FROM closure_reasons WHERE company_id=$1${all?'':' AND active'} ORDER BY system_key IS NOT NULL,lower(name)`,[companyId]),this.pool.query('SELECT require_closure_reason FROM companies WHERE id=$1',[companyId])]);
-  return {required:!!company?.require_closure_reason,reasons:rows.map(r=>({id:r.id,name:r.name,active:r.active,system:!!r.system_key}))};
+  const [{rows},{rows:[company]}]=await Promise.all([this.pool.query(`SELECT id,name,active,system_key,created_by_ai FROM closure_reasons WHERE company_id=$1${all?'':' AND active'} ORDER BY system_key IS NOT NULL,lower(name)`,[companyId]),this.pool.query('SELECT require_closure_reason FROM companies WHERE id=$1',[companyId])]);
+  return {required:!!company?.require_closure_reason,reasons:rows.map(r=>({id:r.id,name:r.name,active:r.active,system:!!r.system_key,createdByAi:!!r.created_by_ai}))};
  }
  async save(companyId,body,id=null){
   const name=typeof body.name==='string'?body.name.trim().replace(/\s+/g,' '):'';
