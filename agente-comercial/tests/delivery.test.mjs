@@ -15,7 +15,7 @@ import {loadConfig} from '../server/config.js';
 test('atividade distingue envio manual, IA e bloqueio por confirmação pendente',()=>{
  const phone='5511999990000',job=(status,manual)=>({status,message:{id:crypto.randomUUID(),from:phone,manual}});
  assert.equal(deliveryActivity({one:job('processing',true)},phone).label,'Enviando sua mensagem…');
- assert.equal(deliveryActivity({one:job('processing',false)},phone).label,'IARA está respondendo…');
+ assert.equal(deliveryActivity({one:job('processing',false)},phone).label,'HELENA está respondendo…');
  const state=deliveryActivity({one:job('attention',true),two:job('queued',true)},phone);
  assert.equal(state.phase,'attention');assert.equal(state.queued.length,1);
  assert.equal(deliveryActivity({one:job('done',true)},phone).phase,'idle');

@@ -29,7 +29,7 @@ test('lembrete de apresentação: 30 minutos, reserva real, janela Meta, isolame
    await root.updateLead(phone,{nome:'Contato fictício',resultado:'apresentacao_agendada',optedOut});await root.recordEvent({id:'in-'+n,phone,direction:'in',actor:'client',text:'Confirmo minha apresentação.',at:new Date(BASE.getTime()-(inWindow?3600000:2*86400000)).toISOString()});
    await root.pool.query('INSERT INTO agenda_offers(id,connection_id,phone,inbound_id,options,config_version,expires_at) VALUES($1,$2,$3,$4,$5,1,$6)',[offerId,'default',phone,'offer-'+n,JSON.stringify([option]),BASE]);
    await root.pool.query("INSERT INTO agenda_bookings(id,connection_id,phone,inbound_id,offer_id,option_data,status,remote_id) VALUES($1,'default',$2,$3,$4,$5,'confirmed',$6)",[bookingId,phone,'confirm-'+n,offerId,option,n]);
-   remote.set(n,{...option,id:n,horaInicio:changed?'10:00':option.horaInicio,status:remoteStatus,descricao:'Ref IARA-'+bookingId});return {phone,bookingId,option,n};
+   remote.set(n,{...option,id:n,horaInicio:changed?'10:00':option.horaInicio,status:remoteStatus,descricao:'Ref HELENA-'+bookingId});return {phone,bookingId,option,n};
   }
   const state=async b=>(await root.pool.query('SELECT * FROM appointment_reminders WHERE booking_id=$1',[b.bookingId])).rows[0];
   await t.test('não antecipa, envia aos 30 minutos e não duplica, mesmo com execuções simultâneas',async()=>{

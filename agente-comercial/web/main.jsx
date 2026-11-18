@@ -38,16 +38,16 @@ const names={claude:'Claude',deepseek:'DeepSeek',ollama:'Ollama',openai:'OpenAI 
 const statusLabel=lead=>lead.optedOut?'Bloqueado':lead.status==='encaminhado'?'Humano':'Automático';
 const temperatureLabel=lead=>lead.temperatura&&lead.temperatura!=='nao_classificado'?lead.temperatura:'A qualificar';
 const deliveryLabel=event=>({sent:'Enviada',delivered:'Entregue',read:'Lida',failed:'Falha na entrega',sending:'Enviando',accepted:'Aceita pela Meta',uncertain:'Conferir envio'}[event.delivery?.status||event.state]||(event.direction==='out'?'Sem confirmação':'Recebida'));
-const authorLabel=event=>event.actor==='human'?(event.operatorName||'Equipe'):event.actor==='ai'?'IARA':event.actor==='system'?'Sistema':'Equipe / IARA';
+const authorLabel=event=>event.actor==='human'?(event.operatorName||'Equipe'):event.actor==='ai'?'HELENA':event.actor==='system'?'Sistema':'Equipe / HELENA';
 const ARCHIVE_GROUPS=['won','lost','closed'];
 function shortDate(value){if(!value)return '';const date=new Date(value);return date.toDateString()===new Date().toDateString()?date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});}
 
 const conversationKey=lead=>lead.ticketId?JSON.stringify([lead.connectionId||'default',lead.telefone,String(lead.ticketId)]):contactKey(lead);
 const inGroup=inConversationGroup;
 const ALL_GROUPS=[['active','IA'],['human','Humanos'],['won','Ganhos'],['lost','Descartados'],['closed','Finalizados']];
-function previewText(lead){return lead.lastMessage?(lead.lastMessageDirection==='out'?(lead.lastMessageActor==='ai'?'IARA: ':lead.lastMessageActor==='system'?'Sistema: ':'Enviada: '):'')+lead.lastMessage:lead.produtos_interesse||'Abra para acompanhar o histórico';}
+function previewText(lead){return lead.lastMessage?(lead.lastMessageDirection==='out'?(lead.lastMessageActor==='ai'?'HELENA: ':lead.lastMessageActor==='system'?'Sistema: ':'Enviada: '):'')+lead.lastMessage:lead.produtos_interesse||'Abra para acompanhar o histórico';}
 function LeadCard({lead,connection,selected,blocked,disabled,onSelect}){
- const name=lead.nome||lead.nomeWhatsApp||lead.telefone,pending=lead.pendingReplyCount||0,owner=lead.assignedUserName||(lead.status==='encaminhado'?'Sem responsável':'IARA');
+ const name=lead.nome||lead.nomeWhatsApp||lead.telefone,pending=lead.pendingReplyCount||0,owner=lead.assignedUserName||(lead.status==='encaminhado'?'Sem responsável':'HELENA');
  return <button type="button" className={'lead-card'+(selected?' selected':'')+(pending?' has-pending':'')} style={{'--connection-color':connectionColor(connection)}} aria-label={name} aria-pressed={selected} disabled={disabled} onClick={()=>onSelect(lead)}>
   <div className="lead-card-top"><strong title={name}>{name}</strong>{pending>0&&<span className="unread-count" aria-label={pending+' mensagens aguardando resposta'} title="Mensagens aguardando resposta">{pending>999?'999+':pending}</span>}</div>
   <div className="lead-card-protocol">#{lead.ticketId}</div>
@@ -80,7 +80,7 @@ function Conversation({lead,events,action,busy,onBack,responding,readOnly=false,
  useEffect(()=>{if(!inspector)return;const onKey=e=>{if(e.key==='Escape')setInspector(false);};document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey);},[inspector]);
  const viewingHistory=lead?.currentTicket===false||!!ticketFilter&&ticketFilter!==String(lead?.ticketId);
  busy=busy||viewingHistory;
- if(!lead)return <section className="panel detail empty"><MessageSquare size={32}/><h2>Selecione uma conversa</h2><p>Acompanhe as mensagens e as respostas da IARA.</p></section>;
+ if(!lead)return <section className="panel detail empty"><MessageSquare size={32}/><h2>Selecione uma conversa</h2><p>Acompanhe as mensagens e as respostas da HELENA.</p></section>;
  const inWindow=events.some(e=>e.source!=='whatsapp_history'&&e.direction==='in'&&Date.now()-Date.parse(e.at)>=0&&Date.now()-Date.parse(e.at)<86400000);
  const base='/leads/'+lead.telefone,visible=events.filter(event=>(!ticketFilter||String(event.ticketId)===ticketFilter)&&(event.text||'').toLowerCase().includes(search.toLowerCase()));
  async function reply(e){e.preventDefault();if(await action(base+'/reply',{text:draft,requestId,sign},'Resposta adicionada à fila.')){setDraft('');setRequestId(crypto.randomUUID());}}
@@ -150,7 +150,7 @@ function App(){
  if(checking)return <main className="login"><p>Verificando sessão…</p></main>;
  if(!user)return <Login onLogin={login} busy={busy} error={error}/>;
  const administrator=user.role==='admin';
- const tabs=[...(user.platform_admin?[['companies','Empresas']]:[]),...(can(user,'calls.use')?[['calls','Ligações']]:[]),...(administrator?[['manage','Conexões e contextos'],['departments','Setores'],['meta','Anúncios Meta'],['hours','Horário e distribuição'],['quick','Mensagens rápidas'],['closure','Motivos de finalização']]:[]),...(can(user,'ai.manage')?[['ai','Inteligência artificial']]:[]),...(can(user,'agenda.manage')?[['agenda','Agenda']]:[]),...(can(user,'crm.manage')?[['crm','CRM']]:[]),...(can(user,'cadence.manage')?[['cadence','Cadência']]:[]),...(can(user,'simulation.use')?[['simulation','Testar IARA']]:[]),...(administrator?[['users','Usuários'],['groups','Grupos de acesso']]:[]),['password','Minha senha']];
+ const tabs=[...(user.platform_admin?[['companies','Empresas']]:[]),...(can(user,'calls.use')?[['calls','Ligações']]:[]),...(administrator?[['manage','Conexões e contextos'],['departments','Setores'],['meta','Anúncios Meta'],['hours','Horário e distribuição'],['quick','Mensagens rápidas'],['closure','Motivos de finalização']]:[]),...(can(user,'ai.manage')?[['ai','Inteligência artificial']]:[]),...(can(user,'agenda.manage')?[['agenda','Agenda']]:[]),...(can(user,'crm.manage')?[['crm','CRM']]:[]),...(can(user,'cadence.manage')?[['cadence','Cadência']]:[]),...(can(user,'simulation.use')?[['simulation','Testar HELENA']]:[]),...(administrator?[['users','Usuários'],['groups','Grupos de acesso']]:[]),['password','Minha senha']];
  const activeSettings=tabs.some(([id])=>id===settingsTab)?settingsTab:tabs[0][0];
  const connection=connections.find(c=>c.id===activeId),responding=['sending','ai','queued'].includes(activity.phase);
  const state=mode==='setup'?'Configuração pendente':connection?.enabled===false?'Conexão pausada':'Atendimento ativo';

@@ -9,3 +9,5 @@ ALTER TABLE cadence_queue ADD COLUMN IF NOT EXISTS finalized_at timestamptz;
 CREATE INDEX IF NOT EXISTS cadence_attempts_contact ON cadence_attempts(connection_id,phone,created_at DESC);
 CREATE INDEX IF NOT EXISTS cadence_reply_deadline ON cadence_queue(next_at) WHERE status='awaiting_response';
 CREATE INDEX IF NOT EXISTS messages_cadence_attempt ON messages(connection_id,(data->>'cadenceAttemptId')) WHERE data ? 'cadenceAttemptId';
+ALTER TABLE cadence_settings ADD COLUMN IF NOT EXISTS next_template_name text;
+ALTER TABLE cadence_settings ADD COLUMN IF NOT EXISTS next_language text;

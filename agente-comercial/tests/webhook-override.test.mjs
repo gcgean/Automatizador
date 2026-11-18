@@ -22,7 +22,7 @@ test('callback de WABA: preserva webhook do app e recusa redirecionar números d
    else if(url.endsWith('/messages'))data={messages:[{id:'mock-'+crypto.randomUUID()}]};
    return {ok:true,json:async()=>data};
   };
-  const registry=new ConnectionRegistry(store,config,{fetchImpl}),context=await store.saveContext(null,'Cilos QA','Você é IARA, da Cilos.');
+  const registry=new ConnectionRegistry(store,config,{fetchImpl}),context=await store.saveContext(null,'Cilos QA','Você é HELENA, da Cilos.');
   const connection=await registry.save({name:'Comercial Cilos',phoneNumberId:'99887766',appId:'77889900',wabaId:'44556677',contextId:context.id,provider:'deepseek',accessToken:'cilos-mock',appSecret:'c'.repeat(32),webhookMode:'waba_override'});
   await t.test('modo específico da conta é preservado ao salvar sem reenviar a opção',async()=>{const saved=await registry.save({...connection,webhookMode:undefined});assert.equal(saved.webhookMode,'waba_override');assert.equal((await registry.configFor(connection.id)).webhookMode,'waba_override');});
   await t.test('ativação altera somente a conta e confirma o override',async()=>{await registry.activate(connection.id);assert.equal(override,config.publicUrl+'/webhook');assert.equal((await store.getConnection(connection.id)).enabled,true);assert.equal(sent.filter(r=>r.method==='POST'&&r.url.endsWith('/77889900/subscriptions')).length,0);});
