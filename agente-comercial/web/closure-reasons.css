@@ -1,0 +1,42 @@
+.closure-panel{align-items:flex-start;flex-wrap:wrap}
+.closure-reasons-field{flex:1;min-width:0;display:grid;gap:8px}
+.closure-title{font-size:12px;font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.closure-title small{font-weight:400;opacity:.7}
+.closure-options{display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow:auto}
+.closure-panel .closure-options label{display:inline-flex;flex:0 0 auto;max-width:none;grid-template-columns:none;align-items:center;gap:6px;font-size:12px;padding:5px 9px;border:1px solid #c9d6e4;border-radius:16px;cursor:pointer;user-select:none}
+.closure-panel .closure-options label.checked{border-color:#00a884;background:#00a88418;font-weight:600}
+.closure-panel .closure-options input{margin:0;width:auto;min-width:0;height:auto;padding:0;accent-color:#00a884}
+.closure-actions{display:flex;gap:8px;align-self:flex-end}
+.closure-error{color:#c2414b;font-size:12px;margin:0}
+.chat-dark .closure-options label{border-color:#41545e;color:#e9edef}
+.chat-dark .closure-panel .closure-options label.checked{border-color:#00a884;background:#00a88430}
+.closure-settings{max-width:760px}
+.closure-required{display:flex;gap:12px;align-items:flex-start;padding:14px;margin:14px 0;cursor:pointer}
+.closure-required input{width:auto;margin-top:3px}
+.closure-required span{display:grid;gap:3px}
+.closure-required small{color:#61738b}
+.closure-add{display:flex;gap:8px;margin:0 0 12px}
+.closure-add input{flex:1}
+.closure-list{list-style:none;margin:0;padding:0;border:1px solid #e2e8f0;border-radius:8px;background:white}
+.closure-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid #edf1f6}
+.closure-list li:last-child{border-bottom:0}
+.closure-list li.inactive .closure-name{opacity:.55}
+.closure-list form{display:flex;gap:8px;flex:1}
+.closure-list form input{flex:1}
+.closure-name{display:flex;gap:8px;align-items:center;font-size:13px}
+.closure-name small{font-size:10px;padding:1px 6px;border-radius:8px;background:#eef2f7;color:#56708f}
+.closure-row-actions{display:flex;gap:6px}
+.closure-row-actions button,.closure-list form button{font-size:12px;padding:6px 10px}
+.closure-report{margin-top:16px;padding:16px}
+.closure-report-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.closure-report-head h3{margin:0;font-size:15px}
+.closure-bars{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.closure-bars li{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr) 40px 40px;align-items:center;gap:10px;font-size:12px}
+.closure-bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.closure-bar{height:10px;background:#eef2f7;border-radius:5px;overflow:hidden}
+.closure-bar span{display:block;height:100%;background:#087bf2;border-radius:5px}
+.closure-bar span.system{background:#8a99ab}
+.closure-bars strong{text-align:right}
+.closure-bars small{color:#61738b;text-align:right}
+.closure-note{font-size:11px;margin:10px 0 0}
+@media(max-width:600px){.closure-bars li{grid-template-columns:minmax(0,1fr) 34px 34px}.closure-bar{grid-column:1/-1;order:2}.closure-add{flex-direction:column}}

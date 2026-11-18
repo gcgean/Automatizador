@@ -9,6 +9,7 @@ import {QuickReplies} from './quick-replies.js';
 import {BrowserPush} from './browser-push.js';
 import {ConsultantRouting} from './consultant-routing.js';
 import {setConversationClosed} from './conversation-lifecycle.js';
+import {ClosureReasons} from './closure-reasons.js';
 import {AppointmentReminders} from './appointment-reminders.js';
 import {Companies} from './companies.js';
 import {MetaCosts} from './meta-costs.js';
@@ -48,6 +49,7 @@ const MAX_BODY = 1024 * 1024;
 export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth, registry, learning, agenda, reminders, simulation, crm, cadence, media, calling, meta, textImprover, reengagement, pipeline, log = console}) {
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   const companies=auth&&rootStore.pool?new Companies(rootStore):null;
+  const closureReasons=auth&&rootStore.pool?new ClosureReasons(rootStore.pool):null;
   const metaCosts=registry?new MetaCosts(registry):null;
   const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
   const quickReplies=registry&&media?new QuickReplies(rootStore,media):null;
@@ -134,6 +136,22 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       if(companies&&currentUser&&!(await rootStore.pool.query('SELECT 1 FROM companies WHERE id=$1 AND active',[companyId])).rowCount)return send(res,403,'Empresa suspensa. Selecione outra empresa para continuar.');
       const permission=requiredPermission(url.pathname,req.method);
       if(auth&&currentUser&&permission&&!can(currentUser,permission))return send(res,403,'Seu acesso não permite esta função.');
+      if(url.pathname==='/closure-reasons'||url.pathname.startsWith('/closure-reasons/')){
+        if(!currentUser||!closureReasons||!registry)return send(res,401,'unauthorized');
+        if(url.pathname==='/closure-reasons'&&req.method==='GET')return send(res,200,await closureReasons.list(companyId,administrator&&url.searchParams.get('all')==='1'));
+        if(url.pathname==='/closure-reasons/report'&&req.method==='GET'){
+          if(!can(currentUser,'reports.view'))return send(res,403,'Seu acesso não permite esta função.');
+          const {from,to}=reportPeriod(url),asked=(url.searchParams.get('connections')||'').split(',').filter(Boolean);
+          const ids=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id))&&asked.includes(c.id)).map(c=>c.id);
+          return send(res,200,await closureReasons.report(ids,from,to));
+        }
+        if(!administrator)return send(res,403,'Somente administradores configuram os motivos de finalização.');
+        if(req.method!=='POST')return send(res,405,'Método não permitido.');
+        const body=JSON.parse((await readBody(req)).toString()),item=url.pathname.match(/^\/closure-reasons\/([0-9a-f-]{36})$/i);
+        if(url.pathname==='/closure-reasons/settings')return send(res,200,await closureReasons.setRequired(companyId,body.required));
+        if(url.pathname==='/closure-reasons'||item)return send(res,200,await closureReasons.save(companyId,body,item?.[1]||null));
+        return send(res,404,'not found');
+      }
       if(pipeline&&/^\/pipeline(?:\/|$)/.test(url.pathname)){
         if(!currentUser)return send(res,401,'unauthorized');
         if(url.pathname==='/pipeline'&&req.method==='GET')return send(res,200,await pipeline.list(currentUser,{status:url.searchParams.get('status'),search:url.searchParams.get('search'),owner:url.searchParams.get('owner'),connection:url.searchParams.get('connection')}));
@@ -261,7 +279,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           return send(res,200,allowed);
         }
         const conversationState=url.pathname.match(/^\/leads\/(\d+)\/conversation-state$/);
-        if(conversationState&&req.method==='POST'){if(!currentUser)return send(res,401,'unauthorized');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await setConversationClosed(store,conversationState[1],body.closed,currentUser,inbox?.jobs,body.ticketId));}
+        if(conversationState&&req.method==='POST'){if(!currentUser)return send(res,401,'unauthorized');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await setConversationClosed(store,conversationState[1],body.closed,currentUser,inbox?.jobs,body.ticketId,body.reasonIds));}
         const transfer=url.pathname.match(/^\/leads\/(\d+)\/transfer$/);
         if(transfer&&req.method==='POST'){
           const body=JSON.parse((await readBody(req)).toString()),person=/^[-a-f0-9]{36}$/i.test(body.userId||'')?await auth.identity(body.userId):null;

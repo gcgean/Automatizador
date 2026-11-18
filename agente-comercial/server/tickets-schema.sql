@@ -73,3 +73,17 @@ DROP TRIGGER IF EXISTS ticket_message ON messages;
 CREATE TRIGGER ticket_message BEFORE INSERT ON messages FOR EACH ROW EXECUTE FUNCTION attribute_ticket_message();
 
 CREATE INDEX IF NOT EXISTS messages_ticket_time ON messages(ticket_id,occurred_at DESC);
+
+-- Motivos de finalização por empresa; um chamado pode ser finalizado com vários motivos.
+CREATE TABLE IF NOT EXISTS closure_reasons (
+ id uuid PRIMARY KEY, company_id text NOT NULL REFERENCES companies(id), name text NOT NULL CHECK(length(name) BETWEEN 1 AND 80),
+ active boolean NOT NULL DEFAULT true, system_key text, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS closure_reason_name ON closure_reasons(company_id,lower(name));
+CREATE UNIQUE INDEX IF NOT EXISTS closure_reason_system ON closure_reasons(company_id,system_key) WHERE system_key IS NOT NULL;
+CREATE TABLE IF NOT EXISTS ticket_closure_reasons (
+ ticket_id bigint NOT NULL REFERENCES service_tickets(id), reason_id uuid NOT NULL REFERENCES closure_reasons(id),
+ actor_id uuid REFERENCES users(id), at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(ticket_id,reason_id)
+);
+CREATE INDEX IF NOT EXISTS ticket_closure_reason_idx ON ticket_closure_reasons(reason_id);
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS require_closure_reason boolean NOT NULL DEFAULT false;
