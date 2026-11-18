@@ -1,6 +1,8 @@
 import {SALES_GUIDANCE,advertisingContext} from './sales-guidance.js';
 import fs from 'node:fs/promises';
-import {requestsOptOut} from './consent.js';
+import {requestsOptOut,declinesInterest} from './consent.js';
+import {closeConversationBySystem} from './conversation-lifecycle.js';
+import {NO_INTEREST,OPT_OUT} from './closure-reasons.js';
 import {createProvider, PROVIDERS} from './llm.js';
 import {CRM_TOOL} from './crm.js';
 import {AGENDA_TOOL} from './agenda.js';
@@ -132,6 +134,12 @@ export class SalesAgent {
 
     if(this.routing&&!(lead?.status==='encaminhado'&&lead?.humanControlId===lead?.businessAppControlId&&lead?.businessAppControlId)&&!lead?.optedOut&&!lead?.conversationClosed){const routed=await this.routing.intercept(this,from,text,interactiveReplyId);if(routed){if(this.cadence)await this.cadence.stop(this.store.connectionId,from,'Cliente respondeu à oferta de consultor');await this.whatsapp.sendText(from,routed.reply,{actor:'ai',provider:'consultant-routing'});conv.pendingHuman??=[];conv.pendingHuman.push({id,text:'Cliente: '+text+'\nResposta da plataforma: '+routed.reply,receivedAt:new Date().toISOString()});conv.processedIds.push(id);await this.store.saveConversation(conv);return routed.reply;}}
     if(this.cadence)await this.cadence.inbound(this.store.connectionId,from,text);
+    if(this.store.scoped&&this.store.pool&&!lead?.conversationClosed&&lead?.status!=='encaminhado'&&!['ganho','perdido'].includes(lead?.resultado)&&declinesInterest(text)){
+      const optOut=requestsOptOut(text),reply=optOut?null:'Tudo bem, agradeço o retorno! Vou encerrar este atendimento. Se precisar de algo no futuro, é só chamar por aqui.';
+      if(reply)await this.whatsapp.sendText(from,reply,{actor:'ai',provider:'closure'});
+      await closeConversationBySystem(this.store,from,optOut?OPT_OUT:NO_INTEREST);
+      conv.processedIds.push(id);await this.store.saveConversation(conv);await this.syncCrm(from);return reply;
+    }
     if (lead?.conversationClosed || lead?.optedOut || lead?.status === 'encaminhado' || ['ganho','perdido'].includes(lead?.resultado)) {
       await this.agenda?.cancelFromMessage?.(this.store.connectionId,from,text,id);
       conv.pendingHuman ??= [];

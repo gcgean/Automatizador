@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {companyOf,validateClosureReasons,recordClosureReasons} from './closure-reasons.js';
+import {companyOf,validateClosureReasons,recordClosureReasons,systemReason,SYSTEM_REASONS} from './closure-reasons.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 export async function clearNoResponseTag(store,phone,lead){
  if(lead.conversationClosedReason!=='cadence_no_response'||!lead.cadenceNoResponseTagId)return;
@@ -21,6 +21,17 @@ export async function setConversationClosed(store,phone,closed,user,jobs={},expe
   if(closed)await recordClosureReasons(tx.pool,row.data.ticketId,reasons.map(r=>r.id),user.id);
   if(closed)await tx.pool.query("UPDATE cadence_queue SET status='stopped',reason='Conversa finalizada pela equipe',updated_at=now() WHERE connection_id=$1 AND phone=$2 AND status IN ('waiting','queued','consent_required','awaiting_response','awaiting_delivery')",[store.connectionId,phone]);
   await tx.audit(closed?'conversation_closed':'conversation_reopened',user.id,closed?{phone,reasons:reasons.map(r=>r.name)}:{phone});return lead;
+ });
+}
+// A IA finaliza quando o cliente recusa de forma clara; grava o motivo no chamado e para a cadência.
+export async function closeConversationBySystem(store,phone,key){
+ return store.transaction(async tx=>{
+  const {rows:[row]}=await tx.pool.query('SELECT data FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[store.connectionId,phone]);if(!row||row.data.conversationClosed)return row?.data||null;
+  const reasonId=await systemReason(tx.pool,await companyOf(tx.pool,store.connectionId),key),name=SYSTEM_REASONS[key];
+  const lead=await tx.updateLead(phone,{conversationClosed:true,conversationClosedAt:new Date().toISOString(),conversationClosedBy:'ai',conversationClosedByName:'IA',conversationClosedReason:key,conversationClosedReasonNames:[name],humanControlId:crypto.randomUUID()});
+  await recordClosureReasons(tx.pool,row.data.ticketId,[reasonId]);
+  await tx.pool.query("UPDATE cadence_queue SET status='stopped',reason=$3,updated_at=now() WHERE connection_id=$1 AND phone=$2 AND status IN ('waiting','queued','consent_required','awaiting_response','awaiting_delivery')",[store.connectionId,phone,name]);
+  await tx.audit('conversation_closed_by_ai',null,{phone,reason:name});return lead;
  });
 }
 // Only a newly accepted inbound message reopens the conversation; duplicate webhooks and reminders do not.

@@ -3,11 +3,14 @@ const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const NO_INTERACTION='no_interaction';
 export const NO_INTERACTION_NAME='Falta de interação';
-// Motivo do sistema usado pela cadência; reaproveita um motivo de mesmo nome criado pela equipe.
+export const NO_INTEREST='no_interest',OPT_OUT='opt_out';
+export const SYSTEM_REASONS={[NO_INTERACTION]:NO_INTERACTION_NAME,[NO_INTEREST]:'Cliente sem interesse',[OPT_OUT]:'Pediu para não ser contatado'};
+// Motivo automático (cadência ou IA); reaproveita um motivo de mesmo nome criado pela equipe.
 export async function systemReason(db,companyId,key=NO_INTERACTION){
+ const label=SYSTEM_REASONS[key];if(!label)throw new Error('Motivo automático desconhecido.');
  const found=await db.query('SELECT id FROM closure_reasons WHERE company_id=$1 AND system_key=$2',[companyId,key]);if(found.rowCount)return found.rows[0].id;
- const named=await db.query('UPDATE closure_reasons SET system_key=$3 WHERE company_id=$1 AND lower(name)=lower($2) AND system_key IS NULL RETURNING id',[companyId,NO_INTERACTION_NAME,key]);if(named.rowCount)return named.rows[0].id;
- const {rows:[row]}=await db.query('INSERT INTO closure_reasons(id,company_id,name,system_key) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id',[crypto.randomUUID(),companyId,NO_INTERACTION_NAME,key]);
+ const named=await db.query('UPDATE closure_reasons SET system_key=$3 WHERE company_id=$1 AND lower(name)=lower($2) AND system_key IS NULL RETURNING id',[companyId,label,key]);if(named.rowCount)return named.rows[0].id;
+ const {rows:[row]}=await db.query('INSERT INTO closure_reasons(id,company_id,name,system_key) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id',[crypto.randomUUID(),companyId,label,key]);
  return row?.id||(await db.query('SELECT id FROM closure_reasons WHERE company_id=$1 AND system_key=$2',[companyId,key])).rows[0].id;
 }
 export async function companyOf(db,connectionId){return (await db.query('SELECT company_id FROM whatsapp_connections WHERE id=$1',[connectionId])).rows[0]?.company_id||'default';}
@@ -28,7 +31,7 @@ export async function recordClosureReasons(db,ticketId,reasonIds,actorId=null){
 export class ClosureReasons{
  constructor(pool){this.pool=pool;}
  async list(companyId,all=false){
-  await systemReason(this.pool,companyId);
+  for(const key of Object.keys(SYSTEM_REASONS))await systemReason(this.pool,companyId,key);
   const [{rows},{rows:[company]}]=await Promise.all([this.pool.query(`SELECT id,name,active,system_key FROM closure_reasons WHERE company_id=$1${all?'':' AND active'} ORDER BY system_key IS NOT NULL,lower(name)`,[companyId]),this.pool.query('SELECT require_closure_reason FROM companies WHERE id=$1',[companyId])]);
   return {required:!!company?.require_closure_reason,reasons:rows.map(r=>({id:r.id,name:r.name,active:r.active,system:!!r.system_key}))};
  }
@@ -41,7 +44,7 @@ export class ClosureReasons{
     if(!UUID.test(id))throw fail('Motivo não encontrado.',404);
     const {rows:[current]}=await this.pool.query('SELECT system_key FROM closure_reasons WHERE id=$1 AND company_id=$2',[id,companyId]);
     if(!current)throw fail('Motivo não encontrado.',404);
-    if(current.system_key&&body.active===false)throw fail('Este motivo é usado pela cadência e não pode ser desativado.');
+    if(current.system_key&&body.active===false)throw fail('Este motivo é usado automaticamente pelo sistema e não pode ser desativado.');
     await this.pool.query('UPDATE closure_reasons SET name=$3,active=COALESCE($4,active) WHERE id=$1 AND company_id=$2',[id,companyId,name,body.active??null]);
    }else await this.pool.query('INSERT INTO closure_reasons(id,company_id,name) VALUES($1,$2,$3)',[crypto.randomUUID(),companyId,name]);
   }catch(e){if(e.code==='23505')throw fail('Já existe um motivo com esse nome.');throw e;}
