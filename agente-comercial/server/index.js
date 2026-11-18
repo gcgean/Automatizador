@@ -10,6 +10,7 @@ import {BrowserPush} from './browser-push.js';
 import {ConsultantRouting} from './consultant-routing.js';
 import {setConversationClosed} from './conversation-lifecycle.js';
 import {ClosureReasons} from './closure-reasons.js';
+import {attendanceDashboard,dashboardFilters} from './attendance-dashboard.js';
 import {AppointmentReminders} from './appointment-reminders.js';
 import {Companies} from './companies.js';
 import {MetaCosts} from './meta-costs.js';
@@ -151,6 +152,14 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(url.pathname==='/closure-reasons/settings')return send(res,200,await closureReasons.setRequired(companyId,body.required));
         if(url.pathname==='/closure-reasons'||item)return send(res,200,await closureReasons.save(companyId,body,item?.[1]||null));
         return send(res,404,'not found');
+      }
+      if(url.pathname==='/reports/attendance'&&req.method==='GET'){
+        if(!currentUser||!registry||!rootStore.pool)return send(res,401,'unauthorized');
+        if(!can(currentUser,'reports.view'))return send(res,403,'Seu acesso não permite esta função.');
+        const {from,to}=reportPeriod(url),filters=dashboardFilters(url);
+        const available=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id)));
+        const chosen=filters.connections.length?available.filter(c=>filters.connections.includes(c.id)):available;
+        return send(res,200,{...await attendanceDashboard(rootStore.pool,{companyId,connections:chosen,from,to,departmentId:filters.departmentId,userId:administrator?filters.userId:currentUser.id}),available:available.map(c=>({id:c.id,name:c.name,color:c.color})),restricted:!administrator});
       }
       if(pipeline&&/^\/pipeline(?:\/|$)/.test(url.pathname)){
         if(!currentUser)return send(res,401,'unauthorized');
