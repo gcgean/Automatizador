@@ -1,0 +1,67 @@
+@import "./theme-auto.css";
+/* Tema claro/escuro do sistema inteiro. O botão "Tema claro/escuro" grava html[data-theme]. */
+:root{--ui-surface:#fff;--ui-surface-2:#f8fafc;--ui-border:#e2e8f0;--ui-border-strong:#b8c5d6;--ui-text:#0f172a;--ui-muted:#64748b;--ui-input:#fff;--ui-hover:#f1f5f9}
+html[data-theme=dark]{--ui-surface:#111b21;--ui-surface-2:#182229;--ui-border:#2a3942;--ui-border-strong:#3b4a54;--ui-text:#e9edef;--ui-muted:#8696a0;--ui-input:#202c33;--ui-hover:#202c33;color-scheme:dark;color:#e9edef;background:#0b141a}
+html[data-theme=dark] body{background:#0b141a}
+
+/* Estrutura */
+html[data-theme=dark] header{background:#111b21;border-color:#2a3942;color:#e9edef}
+html[data-theme=dark] .page-workspace{background:#0b141a}
+html[data-theme=dark] .panel{background:#111b21;border-color:#2a3942;color:#e9edef}
+html[data-theme=dark] h1,html[data-theme=dark] h2,html[data-theme=dark] h3,html[data-theme=dark] h4{color:#e9edef}
+html[data-theme=dark] .muted,html[data-theme=dark] small.muted{color:#8696a0}
+html[data-theme=dark] label{color:#d1d7db}
+
+/* Botões e campos */
+html[data-theme=dark] button.secondary{background:#202c33;border-color:#3b4a54;color:#e9edef}
+html[data-theme=dark] button.secondary:hover{background:#2a3942}
+html[data-theme=dark] button:disabled{opacity:.55}
+html[data-theme=dark] .icon-button{color:#aebac1}
+html[data-theme=dark] input,html[data-theme=dark] textarea,html[data-theme=dark] select{background:#202c33;border-color:#3b4a54;color:#e9edef}
+html[data-theme=dark] input::placeholder,html[data-theme=dark] textarea::placeholder{color:#8696a0}
+html[data-theme=dark] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
+html[data-theme=dark] .search{background:#202c33;border-color:#3b4a54;color:#8696a0}
+html[data-theme=dark] .search input{background:transparent}
+
+/* Tabelas */
+html[data-theme=dark] th{background:#182229;color:#8696a0;border-color:#2a3942}
+html[data-theme=dark] td{border-color:#2a3942;color:#d1d7db}
+html[data-theme=dark] tr:hover td{background:#16232b}
+
+/* Avisos e etiquetas */
+html[data-theme=dark] .banner{background:#17324f;color:#dbeafe}
+html[data-theme=dark] .banner.success,html[data-theme=dark] .success.banner{background:#0f3b2e;color:#bbf7d0}
+html[data-theme=dark] .banner.error,html[data-theme=dark] .error.banner{background:#4c1d1f;color:#fecaca}
+html[data-theme=dark] .error{color:#fca5a5}
+html[data-theme=dark] .tag{background:#202c33;color:#c7d0d6}
+html[data-theme=dark] .app-notice{background:#0f3b2e;color:#bbf7d0;border-color:#166534}
+
+/* Relatório de atendimentos */
+html[data-theme=dark] .att-report{color:#e9edef}
+html[data-theme=dark] .att-card,html[data-theme=dark] .att-kpi{background:#111b21;border-color:#2a3942}
+html[data-theme=dark] .att-kpi strong{color:#e9edef}
+html[data-theme=dark] .att-filter-grid label{color:#d1d7db}
+html[data-theme=dark] .att-bar-track{background:#202c33}
+html[data-theme=dark] .att-chart .att-gridline{stroke:#2a3942}
+html[data-theme=dark] .att-legend strong{color:#e9edef}
+html[data-theme=dark] .att-table th{background:#182229}
+html[data-theme=dark] .att-table td{border-color:#1f2c33}
+
+/* Motivos de finalização */
+html[data-theme=dark] .closure-list{background:#111b21;border-color:#2a3942}
+html[data-theme=dark] .closure-list li{border-color:#1f2c33}
+html[data-theme=dark] .closure-name small{background:#202c33;color:#aebac1}
+html[data-theme=dark] .closure-bar{background:#202c33}
+html[data-theme=dark] .closure-required small{color:#8696a0}
+html[data-theme=dark] .closure-modal-backdrop{background:rgba(0,0,0,.65)}
+
+/* Contatos */
+html[data-theme=dark] .contacts-panel{background:#111b21;border-color:#2a3942}
+html[data-theme=dark] .contacts-preview{background:#182229;border-color:#2a3942}
+html[data-theme=dark] .contacts-preview ul{color:#aebac1}
+html[data-theme=dark] .contacts-table th{background:#182229}
+html[data-theme=dark] .contacts-table td{border-color:#1f2c33}
+html[data-theme=dark] .contacts-status.open{color:#6ee7b7}
+html[data-theme=dark] .contacts-status.closed{color:#aebac1}
+html[data-theme=dark] .contacts-status.none{color:#93c5fd}
+html[data-theme=dark] .contacts-status.blocked{color:#fca5a5}

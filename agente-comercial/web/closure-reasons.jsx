@@ -1,20 +1,45 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
+import {Search,X,Plus,Check,Sparkles} from 'lucide-react';
 import {request} from './account.jsx';
 import './closure-reasons.css';
 
-// Painel aberto ao clicar em Finalizar: escolha de um ou mais motivos.
+const plain=text=>String(text||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+
+// Janela aberta ao clicar em Finalizar: pesquisar e adicionar um ou mais motivos,
+// e cadastrar um motivo novo depois que a IA confere que ele não repete um existente.
 export function ClosurePanel({busy,onCancel,onConfirm}){
- const [data,setData]=useState(null),[chosen,setChosen]=useState([]),[error,setError]=useState('');
+ const [data,setData]=useState(null),[chosen,setChosen]=useState([]),[query,setQuery]=useState(''),[error,setError]=useState(''),[checking,setChecking]=useState(false),[check,setCheck]=useState(null),search=useRef(null);
  useEffect(()=>{let active=true;request('/closure-reasons').then(d=>{if(active)setData(d);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
- const toggle=id=>setChosen(c=>c.includes(id)?c.filter(x=>x!==id):[...c,id]);
+ useEffect(()=>{search.current?.focus();const key=e=>{if(e.key==='Escape')onCancel();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
+ const reasons=data?.reasons||[],picked=chosen.map(id=>reasons.find(r=>r.id===id)).filter(Boolean);
+ const term=plain(query),matches=reasons.filter(r=>!chosen.includes(r.id)&&(!term||plain(r.name).includes(term)));
+ const exact=term&&reasons.some(r=>plain(r.name)===term);
+ const add=id=>{setChosen(c=>c.includes(id)?c:[...c,id]);setQuery('');setCheck(null);search.current?.focus();};
+ const remove=id=>setChosen(c=>c.filter(x=>x!==id));
+ async function createReason(){
+  setChecking(true);setError('');setCheck(null);
+  try{const r=await request('/closure-reasons/validated',{name:query});
+   if(r.status==='created'){setData(d=>({...d,reasons:[...d.reasons,r.reason].sort((a,b)=>a.name.localeCompare(b.name))}));add(r.reason.id);setCheck({kind:'created',name:r.reason.name,aiChecked:r.aiChecked});}
+   else setCheck({kind:'duplicate',reason:r.duplicateOf,how:r.how});}
+  catch(e){setError(e.message);}finally{setChecking(false);}
+ }
  const missing=!!data?.required&&!chosen.length;
- return <div className="transfer-panel closure-panel" role="group" aria-label="Motivo da finalização">
-  <div className="closure-reasons-field"><span className="closure-title">Motivo da finalização{data?.required?' (obrigatório)':' (opcional)'}<small>Marque um ou mais.</small></span>
-   {error?<p role="alert" className="closure-error">{error}</p>:!data?<p className="muted">Carregando motivos…</p>:!data.reasons.length?<p className="muted">Nenhum motivo cadastrado.</p>:
-   <div className="closure-options">{data.reasons.map(r=><label key={r.id} className={chosen.includes(r.id)?'checked':''}><input type="checkbox" checked={chosen.includes(r.id)} onChange={()=>toggle(r.id)}/>{r.name}</label>)}</div>}
+ return createPortal(<div className="closure-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onCancel();}}>
+  <div className="closure-modal" role="dialog" aria-modal="true" aria-labelledby="closure-modal-title">
+   <div className="closure-modal-head"><div><h2 id="closure-modal-title">Finalizar atendimento</h2><p>Informe o motivo do encerramento{data?.required?' (obrigatório)':''}. Você pode adicionar mais de um.</p></div><button type="button" className="icon-button" aria-label="Fechar" onClick={onCancel}><X size={18}/></button></div>
+   <div className="closure-chosen" aria-label="Motivos escolhidos">{picked.length?picked.map(r=><span key={r.id} className="closure-chip">{r.name}<button type="button" aria-label={'Remover '+r.name} onClick={()=>remove(r.id)}><X size={12}/></button></span>):<span className="closure-chosen-empty">Nenhum motivo adicionado ainda.</span>}</div>
+   <div className="closure-search"><Search size={16}/><input ref={search} aria-label="Pesquisar motivo" placeholder="Pesquisar ou digitar um novo motivo…" value={query} maxLength={60} onChange={e=>{setQuery(e.target.value);setCheck(null);}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(matches.length===1)add(matches[0].id);else if(term&&!exact&&!matches.length)createReason();}}}/></div>
+   <div className="closure-results" role="listbox" aria-label="Motivos disponíveis">
+    {error?<p role="alert" className="closure-error">{error}</p>:!data?<p className="closure-hint">Carregando motivos…</p>:matches.map(r=><button type="button" role="option" aria-selected="false" key={r.id} onClick={()=>add(r.id)}><Plus size={14}/>{r.name}{r.system&&<small>Automático</small>}</button>)}
+    {data&&!matches.length&&!term&&<p className="closure-hint">Todos os motivos já foram adicionados.</p>}
+    {data&&term&&!exact&&<button type="button" className="closure-create" disabled={checking||term.length<3} onClick={createReason}><Sparkles size={14}/>{checking?'Conferindo com a IA…':'Cadastrar novo motivo “'+query.trim()+'”'}</button>}
+   </div>
+   {check?.kind==='duplicate'&&<div className="closure-check duplicate" role="status">Já existe um motivo com o mesmo sentido: <strong>{check.reason.name}</strong>{check.how==='ia'?' (conferido pela IA)':''}.{check.reason.active!==false?<button type="button" onClick={()=>add(check.reason.id)}>Usar este</button>:<span> Ele está desativado; peça a um administrador para reativar.</span>}</div>}
+   {check?.kind==='created'&&<div className="closure-check created" role="status"><Check size={14}/>Motivo <strong>{check.name}</strong> cadastrado{check.aiChecked?' e conferido pela IA':''} e adicionado.</div>}
+   <div className="closure-modal-foot"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="button" disabled={busy||!data||missing} title={missing?'Adicione ao menos um motivo':''} onClick={()=>onConfirm(chosen)}>Finalizar{chosen.length?' com '+chosen.length+' motivo'+(chosen.length>1?'s':''):''}</button></div>
   </div>
-  <div className="closure-actions"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="button" disabled={busy||!data||missing} title={missing?'Escolha ao menos um motivo':''} onClick={()=>onConfirm(chosen)}>Finalizar</button></div>
- </div>;
+ </div>,document.body);
 }
 
 // Configurações: cadastro dos motivos e se o motivo é obrigatório.

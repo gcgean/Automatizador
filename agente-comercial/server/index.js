@@ -9,7 +9,8 @@ import {QuickReplies} from './quick-replies.js';
 import {BrowserPush} from './browser-push.js';
 import {ConsultantRouting} from './consultant-routing.js';
 import {setConversationClosed} from './conversation-lifecycle.js';
-import {ClosureReasons} from './closure-reasons.js';
+import {ClosureReasons,ReasonValidator} from './closure-reasons.js';
+import {createProvider} from './llm.js';
 import {attendanceDashboard,dashboardFilters} from './attendance-dashboard.js';
 import {Contacts} from './contacts.js';
 import {canSeeLead} from './conversation-access.js';
@@ -53,6 +54,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   const companies=auth&&rootStore.pool?new Companies(rootStore):null;
   const closureReasons=auth&&rootStore.pool?new ClosureReasons(rootStore.pool):null;
+  const reasonValidator=closureReasons&&registry?new ReasonValidator(rootStore.pool,{providerFactory:createProvider,providerFor:async company=>{const c=(await registry.list()).find(x=>x.companyId===company&&x.enabled!==false);return c?(await rootStore.scope(c.id).getConnection()).provider:undefined;}}):null;
   const contacts=rootStore.pool?new Contacts(rootStore):null;
   const metaCosts=registry?new MetaCosts(registry):null;
   const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
@@ -149,6 +151,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           const ids=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id))&&asked.includes(c.id)).map(c=>c.id);
           return send(res,200,await closureReasons.report(ids,from,to));
         }
+        if(url.pathname==='/closure-reasons/validated'&&req.method==='POST'){if(!can(currentUser,'leads.manage')||!reasonValidator)return send(res,403,'Seu acesso não permite cadastrar motivos.');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await reasonValidator.create(companyId,body.name));}
         if(!administrator)return send(res,403,'Somente administradores configuram os motivos de finalização.');
         if(req.method!=='POST')return send(res,405,'Método não permitido.');
         const body=JSON.parse((await readBody(req)).toString()),item=url.pathname.match(/^\/closure-reasons\/([0-9a-f-]{36})$/i);

@@ -40,3 +40,29 @@
 .closure-bars small{color:#61738b;text-align:right}
 .closure-note{font-size:11px;margin:10px 0 0}
 @media(max-width:600px){.closure-bars li{grid-template-columns:minmax(0,1fr) 34px 34px}.closure-bar{grid-column:1/-1;order:2}.closure-add{flex-direction:column}}
+/* Janela de finalização */
+.closure-modal-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px 16px}
+.closure-modal{width:min(560px,100%);max-height:84vh;display:flex;flex-direction:column;gap:12px;background:var(--ui-surface,#fff);color:var(--ui-text,#0f172a);border:1px solid var(--ui-border,#e2e8f0);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.3);padding:18px 20px}
+.closure-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.closure-modal-head h2{margin:0;font-size:18px}
+.closure-modal-head p{margin:4px 0 0;font-size:13px;color:var(--ui-muted,#64748b)}
+.closure-chosen{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:center}
+.closure-chosen-empty{font-size:12px;color:var(--ui-muted,#64748b)}
+.closure-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 4px 4px 10px;border-radius:16px;background:#00a88422;border:1px solid #00a884;font-size:12px;font-weight:600}
+.closure-chip button{min-height:0;padding:2px;border:0;background:transparent;color:inherit;border-radius:50%;cursor:pointer}
+.closure-chip button:hover{background:#00a88433;filter:none}
+.closure-search{display:flex;align-items:center;gap:8px;border:1px solid var(--ui-border-strong,#b8c5d6);border-radius:8px;padding:0 10px;background:var(--ui-input,#fff);color:var(--ui-muted,#64748b)}
+.closure-search:focus-within{border-color:#087bf2;box-shadow:0 0 0 3px #087bf226}
+.closure-modal .closure-search input{flex:1;border:0;outline:0;box-shadow:none;background:transparent;color:var(--ui-text,#0f172a);padding:10px 2px;margin:0;min-width:0}
+.closure-results{display:flex;flex-direction:column;gap:2px;overflow:auto;min-height:60px;max-height:260px;border:1px solid var(--ui-border,#e2e8f0);border-radius:8px;padding:4px}
+.closure-results>button{justify-content:flex-start;gap:8px;width:100%;min-height:0;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--ui-text,#0f172a);font-weight:500;text-align:left;white-space:normal}
+.closure-results>button:hover,.closure-results>button:focus-visible{background:var(--ui-hover,#f1f5f9);filter:none}
+.closure-results>button small{margin-left:auto;font-size:10px;color:var(--ui-muted,#64748b)}
+.closure-results>button.closure-create{color:#087bf2;font-weight:600;border-top:1px dashed var(--ui-border,#e2e8f0);border-radius:0 0 6px 6px}
+.closure-hint{margin:8px;font-size:12px;color:var(--ui-muted,#64748b)}
+.closure-check{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;padding:8px 10px;border-radius:8px}
+.closure-check.duplicate{background:#f59e0b1f;color:var(--ui-text,#0f172a);border:1px solid #f59e0b66}
+.closure-check.duplicate button{min-height:0;padding:4px 10px;font-size:12px;margin-left:auto}
+.closure-check.created{background:#10b9811f;border:1px solid #10b98166}
+.closure-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+@media(max-width:600px){.closure-modal-backdrop{padding:0;align-items:stretch}.closure-modal{max-height:none;border-radius:0}}
