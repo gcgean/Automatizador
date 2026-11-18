@@ -8,6 +8,8 @@ export const ALL_PERMISSIONS=PERMISSION_SECTIONS.flatMap(s=>s.items.map(i=>i[0])
 export const LEGACY_PERMISSIONS={viewer:['pipeline.view','conversations.view','reports.view','reports.export'],operator:['pipeline.view','pipeline.manage','calls.use','conversations.view','messages.send','media.send','signature.choose','conversations.automation','conversations.transfer','leads.manage','contacts.block','photos.manage','queue.resolve','deals.manage','reports.view','reports.export']};
 export const can=(user,key)=>user?.role==='admin'||(user?.permissions||LEGACY_PERMISSIONS[user?.role]||[]).includes(key);
 export function requiredPermission(path,method){
+ if(path==='/contacts')return 'conversations.view';
+ if(path.startsWith('/contacts/'))return 'leads.manage';
  if(path==='/attendances')return 'conversations.view';
  if(path==='/departments')return 'admin';
  if(path==='/ticket-departments')return 'conversations.transfer';

@@ -11,6 +11,8 @@ import {ConsultantRouting} from './consultant-routing.js';
 import {setConversationClosed} from './conversation-lifecycle.js';
 import {ClosureReasons} from './closure-reasons.js';
 import {attendanceDashboard,dashboardFilters} from './attendance-dashboard.js';
+import {Contacts} from './contacts.js';
+import {canSeeLead} from './conversation-access.js';
 import {AppointmentReminders} from './appointment-reminders.js';
 import {Companies} from './companies.js';
 import {MetaCosts} from './meta-costs.js';
@@ -51,6 +53,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
   const users=auth?new UserAdministration(rootStore,config.publicUrl):null;
   const companies=auth&&rootStore.pool?new Companies(rootStore):null;
   const closureReasons=auth&&rootStore.pool?new ClosureReasons(rootStore.pool):null;
+  const contacts=rootStore.pool?new Contacts(rootStore):null;
   const metaCosts=registry?new MetaCosts(registry):null;
   const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
   const quickReplies=registry&&media?new QuickReplies(rootStore,media):null;
@@ -151,6 +154,21 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const body=JSON.parse((await readBody(req)).toString()),item=url.pathname.match(/^\/closure-reasons\/([0-9a-f-]{36})$/i);
         if(url.pathname==='/closure-reasons/settings')return send(res,200,await closureReasons.setRequired(companyId,body.required));
         if(url.pathname==='/closure-reasons'||item)return send(res,200,await closureReasons.save(companyId,body,item?.[1]||null));
+        return send(res,404,'not found');
+      }
+      if(url.pathname==='/contacts'||url.pathname.startsWith('/contacts/')){
+        if(!currentUser||!registry||!contacts)return send(res,401,'unauthorized');
+        const available=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id)));
+        if(url.pathname==='/contacts'&&req.method==='GET')return send(res,200,{...await contacts.list(currentUser,available,{q:url.searchParams.get('q')||'',connectionId:url.searchParams.get('connection')||'',limit:url.searchParams.get('limit'),offset:url.searchParams.get('offset')}),connections:available.map(c=>({id:c.id,name:c.name,color:c.color}))});
+        if(req.method!=='POST')return send(res,405,'Método não permitido.');
+        const body=JSON.parse((await readBody(req)).toString());
+        if(!available.some(c=>c.id===body.connectionId))return send(res,400,'Escolha um número disponível.');
+        if(url.pathname==='/contacts/save')return send(res,200,await contacts.save(body.connectionId,body,currentUser));
+        if(url.pathname==='/contacts/import')return send(res,200,await contacts.import(body.connectionId,body.contacts,currentUser));
+        const phone=String(body.phone||'');if(!/^\d{8,15}$/.test(phone))return send(res,400,'Contato inválido.');
+        if(!canSeeLead(currentUser,await rootStore.scope(body.connectionId).getLead(phone)))return send(res,403,'Seu acesso não permite este contato.');
+        if(url.pathname==='/contacts/rename'){const lead=await contacts.rename(body.connectionId,phone,body.name,currentUser);if(crm)crm.enqueue(body.connectionId,phone).catch(()=>{});return send(res,200,lead);}
+        if(url.pathname==='/contacts/open'){const runtime=await registry.runtime(body.connectionId);return send(res,200,await contacts.open(body.connectionId,phone,currentUser,runtime?.inbox?.jobs||{}));}
         return send(res,404,'not found');
       }
       if(url.pathname==='/reports/attendance'&&req.method==='GET'){

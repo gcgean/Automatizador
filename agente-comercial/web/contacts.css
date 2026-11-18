@@ -1,0 +1,49 @@
+.contacts-page{max-width:1400px;margin:12px auto 32px;display:flex;flex-direction:column;gap:14px}
+.contacts-title{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.contacts-title h1{margin:0;font-size:25px}
+.contacts-title p{margin:4px 0 0}
+.contacts-actions{display:flex;gap:8px;flex-wrap:wrap}
+.contacts-actions button,.contacts-panel button,.contacts-row-actions button{display:inline-flex;align-items:center;gap:6px}
+.contacts-panel{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:grid;gap:10px}
+.contacts-panel-head{display:flex;justify-content:space-between;align-items:center}
+.contacts-panel-head h3{margin:0;font-size:15px}
+.contacts-panel p{margin:0}
+.contacts-form-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.contacts-form-row label{display:grid;gap:5px;font-size:12px;font-weight:500;min-width:170px;flex:1 1 170px}
+.contacts-form-row input,.contacts-form-row select{margin:0}
+.contacts-hint{font-size:12px}
+.contacts-preview{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;display:grid;gap:8px;justify-items:start}
+.contacts-preview ul{margin:0;padding-left:18px;font-size:12px;color:#475569}
+.contacts-toolbar{display:flex;gap:10px;flex-wrap:wrap}
+.contacts-toolbar .search{flex:1 1 280px;margin:0}
+.contacts-toolbar select{width:auto;min-width:200px;margin:0}
+.contacts-toolbar .search input{min-width:0}
+.contacts-page .banner{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0}
+.contacts-table-wrap{padding:0;overflow:auto}
+.contacts-table{width:100%;border-collapse:collapse;font-size:13px}
+.contacts-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#64748b;font-weight:600;padding:10px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.contacts-table td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.contacts-table td:first-child{min-width:200px}
+.contacts-wa{display:block;font-size:11px;color:#94a3b8}
+.contacts-phone{white-space:nowrap;font-variant-numeric:tabular-nums}
+.contacts-conn{display:inline-flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+.contacts-conn:before{content:'';width:8px;height:8px;border-radius:50%;background:var(--c)}
+.contacts-status{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.contacts-status.open{background:#10b98122;color:#047857}.contacts-status.closed{background:#64748b1f;color:#475569}.contacts-status.none{background:#3b82f61a;color:#1d4ed8}.contacts-status.blocked{background:#ef44441a;color:#b91c1c}
+.contacts-row-actions{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+.contacts-row-actions button{font-size:12px;padding:6px 10px}
+.contacts-empty{padding:16px}
+.contacts-more{margin:12px}
+/* Nome do contato editável (conversa, cards e lista) */
+.contact-name{margin:0}
+.contact-name-button{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:inherit;font:inherit;font-weight:inherit;cursor:text;text-align:left;max-width:100%;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contact-name-button:hover{filter:none;text-decoration:underline dotted;text-underline-offset:3px}
+.contact-name-button svg{flex-shrink:0;opacity:0;transition:opacity .15s}
+.contact-name-button:hover svg,.contact-name-button:focus-visible svg{opacity:.6}
+.contact-rename{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.contact-rename input{margin:0;min-width:180px;max-width:280px;height:32px;padding:4px 8px;font-size:14px}
+.contact-rename small{color:#c2414b;font-size:11px;flex-basis:100%}
+.lead-card-rename{flex-shrink:0;display:inline-flex;opacity:0;cursor:pointer;padding:1px;border-radius:4px;transition:opacity .15s}
+.lead-card:hover .lead-card-rename,.lead-card-rename:focus-visible{opacity:.7}
+.lead-card-rename:hover{opacity:1;background:#64748b26}
+@media(max-width:760px){.contacts-table th:nth-child(4),.contacts-table td:nth-child(4),.contacts-table th:nth-child(5),.contacts-table td:nth-child(5){display:none}.contacts-row-actions{flex-direction:column;align-items:stretch}}

@@ -269,7 +269,9 @@ export class SalesAgent {
         if (!Object.hasOwn(allowed, field) || value !== null && typeof value !== 'string') throw new Error('Campo de lead inválido: ' + field);
         if (field === 'temperatura' && !allowed.temperatura.enum.includes(value)) throw new Error('Temperatura inválida.');
       }
-      const lead = await this.store.updateLead(from, input);
+      // Nome definido pela equipe (contato salvo ou renomeado) não é sobrescrito pela IA.
+      const current = this.store.getLead ? await this.store.getLead(from) : null, keepName = (current?.contactRenamedAt || current?.contactSavedAt) && input.nome !== undefined;
+      const lead = await this.store.updateLead(from, keepName ? Object.fromEntries(Object.entries(input).filter(([field]) => field !== 'nome')) : input);
       return `Lead atualizado. Status: ${lead.status}.`;
     }
     if (name === 'encaminhar_para_vendedor') {
