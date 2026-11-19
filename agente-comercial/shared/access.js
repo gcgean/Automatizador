@@ -1,11 +1,11 @@
 export const PERMISSION_SECTIONS=[
  {name:'CRM da empresa',items:[['pipeline.view','Ver o funil e as oportunidades'],['pipeline.manage','Criar e editar oportunidades e anotações']]},
- {name:'Atendimento',items:[['conversations.view','Ver conversas e contatos'],['messages.send','Enviar mensagens de texto'],['calls.use','Fazer e receber ligações WhatsApp'],['media.send','Enviar áudios e anexos'],['signature.choose','Escolher enviar com ou sem assinatura'],['conversations.automation','Pausar e retomar a IA'],['conversations.transfer','Transferir para atendente humano'],['leads.manage','Classificar leads, etiquetas e encerramentos'],['contacts.block','Bloquear contatos'],['photos.manage','Cadastrar foto do contato'],['queue.resolve','Resolver pendências de envio'],['deals.manage','Atualizar e fechar negócios no CRM']]},
+ {name:'Atendimento',items:[['conversations.view','Ver conversas e contatos'],['messages.send','Enviar mensagens de texto'],['calls.use','Fazer e receber ligações WhatsApp'],['media.send','Enviar áudios e anexos'],['signature.choose','Escolher enviar com ou sem assinatura'],['conversations.automation','Pausar e retomar a IA'],['conversations.transfer','Transferir para atendente humano'],['leads.manage','Classificar leads e etiquetas'],['conversations.close','Finalizar e reabrir atendimentos informando o motivo'],['closure-reasons.create','Cadastrar novo motivo de finalização (validado pela IA)'],['contacts.block','Bloquear contatos'],['photos.manage','Cadastrar foto do contato'],['queue.resolve','Resolver pendências de envio'],['deals.manage','Atualizar e fechar negócios no CRM']]},
  {name:'Análise',items:[['reports.view','Ver relatórios'],['reports.export','Exportar mensagens'],['learning.manage','Analisar e aprovar melhorias da IA']]},
  {name:'Configurações',items:[['ai.manage','Escolher provedor de IA'],['agenda.manage','Configurar agenda e conferir reservas'],['crm.manage','Configurar CRM e conferir sincronização'],['cadence.manage','Configurar cadência'],['simulation.use','Testar HELENA e integrações']]}
 ];
 export const ALL_PERMISSIONS=PERMISSION_SECTIONS.flatMap(s=>s.items.map(i=>i[0]));
-export const LEGACY_PERMISSIONS={viewer:['pipeline.view','conversations.view','reports.view','reports.export'],operator:['pipeline.view','pipeline.manage','calls.use','conversations.view','messages.send','media.send','signature.choose','conversations.automation','conversations.transfer','leads.manage','contacts.block','photos.manage','queue.resolve','deals.manage','reports.view','reports.export']};
+export const LEGACY_PERMISSIONS={viewer:['pipeline.view','conversations.view','reports.view','reports.export'],operator:['pipeline.view','pipeline.manage','calls.use','conversations.view','messages.send','media.send','signature.choose','conversations.automation','conversations.transfer','leads.manage','conversations.close','closure-reasons.create','contacts.block','photos.manage','queue.resolve','deals.manage','reports.view','reports.export']};
 export const can=(user,key)=>user?.role==='admin'||(user?.permissions||LEGACY_PERMISSIONS[user?.role]||[]).includes(key);
 export function requiredPermission(path,method){
  if(path==='/contacts')return 'conversations.view';
@@ -15,7 +15,7 @@ export function requiredPermission(path,method){
  if(path==='/ticket-departments')return 'conversations.transfer';
  if(/^\/leads\/\d+\/tickets$/.test(path))return 'conversations.view';
  if(/^\/quick-replies(?:\/|$)/.test(path))return method==='GET'?'messages.send':'admin';
- if(/^\/leads\/\d+\/conversation-state$/.test(path))return 'leads.manage';
+ if(/^\/leads\/\d+\/conversation-state$/.test(path))return 'conversations.close';
  if(/^\/pipeline(?:\/|$)/.test(path))return method==='GET'?'pipeline.view':'pipeline.manage';
  if(/^\/leads\/\d+\/reengage$/.test(path))return 'messages.send';
  if(/^\/leads\/\d+\/improve-text$/.test(path))return 'messages.send';

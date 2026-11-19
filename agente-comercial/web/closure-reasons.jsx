@@ -8,7 +8,7 @@ const plain=text=>String(text||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLow
 
 // Janela aberta ao clicar em Finalizar: pesquisar e adicionar um ou mais motivos,
 // e cadastrar um motivo novo depois que a IA confere que ele não repete um existente.
-export function ClosurePanel({busy,onCancel,onConfirm}){
+export function ClosurePanel({busy,onCancel,onConfirm,canCreate=true}){
  const [data,setData]=useState(null),[chosen,setChosen]=useState([]),[query,setQuery]=useState(''),[error,setError]=useState(''),[checking,setChecking]=useState(false),[check,setCheck]=useState(null),search=useRef(null);
  useEffect(()=>{let active=true;request('/closure-reasons').then(d=>{if(active)setData(d);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
  useEffect(()=>{search.current?.focus();const key=e=>{if(e.key==='Escape')onCancel();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
@@ -32,8 +32,8 @@ export function ClosurePanel({busy,onCancel,onConfirm}){
    <div className="closure-search"><Search size={16}/><input ref={search} aria-label="Pesquisar motivo" placeholder="Pesquisar ou digitar um novo motivo…" value={query} maxLength={60} onChange={e=>{setQuery(e.target.value);setCheck(null);}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();if(matches.length===1)add(matches[0].id);else if(term&&!exact&&!matches.length)createReason();}}}/></div>
    <div className="closure-results" role="listbox" aria-label="Motivos disponíveis">
     {error?<p role="alert" className="closure-error">{error}</p>:!data?<p className="closure-hint">Carregando motivos…</p>:matches.map(r=><button type="button" role="option" aria-selected="false" key={r.id} onClick={()=>add(r.id)}><Plus size={14}/>{r.name}{r.system&&<small>Automático</small>}</button>)}
-    {data&&!matches.length&&!term&&<p className="closure-hint">Todos os motivos já foram adicionados.</p>}
-    {data&&term&&!exact&&<button type="button" className="closure-create" disabled={checking||term.length<3} onClick={createReason}><Sparkles size={14}/>{checking?'Conferindo com a IA…':'Cadastrar novo motivo “'+query.trim()+'”'}</button>}
+    {data&&!matches.length&&!term&&<p className="closure-hint">Todos os motivos já foram adicionados.</p>}{data&&term&&!exact&&!matches.length&&!canCreate&&<p className="closure-hint">Nenhum motivo encontrado. Seu acesso não permite cadastrar motivos novos.</p>}
+    {data&&term&&!exact&&canCreate&&<button type="button" className="closure-create" disabled={checking||term.length<3} onClick={createReason}><Sparkles size={14}/>{checking?'Conferindo com a IA…':'Cadastrar novo motivo “'+query.trim()+'”'}</button>}
    </div>
    {check?.kind==='duplicate'&&<div className="closure-check duplicate" role="status">Já existe um motivo com o mesmo sentido: <strong>{check.reason.name}</strong>{check.how==='ia'?' (conferido pela IA)':''}.{check.reason.active!==false?<button type="button" onClick={()=>add(check.reason.id)}>Usar este</button>:<span> Ele está desativado; peça a um administrador para reativar.</span>}</div>}
    {check?.kind==='created'&&<div className="closure-check created" role="status"><Check size={14}/>Motivo <strong>{check.name}</strong> cadastrado{check.aiChecked?' e conferido pela IA':''} e adicionado.</div>}
