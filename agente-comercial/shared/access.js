@@ -17,6 +17,7 @@ export function requiredPermission(path,method){
  if(path==='/departments')return 'admin';
  if(path==='/ticket-departments')return 'conversations.transfer';
  if(/^\/leads\/\d+\/tickets$/.test(path))return 'conversations.view';
+ if(/^\/leads\/\d+\/youtube(?:\/|$)/.test(path))return method==='GET'?'conversations.view':'messages.send';
  if(/^\/quick-replies(?:\/|$)/.test(path))return method==='GET'?'messages.send':'admin';
  if(/^\/leads\/\d+\/conversation-state$/.test(path))return 'conversations.close';
  if(/^\/pipeline(?:\/|$)/.test(path))return method==='GET'?'pipeline.view':'pipeline.manage';

@@ -1,0 +1,16 @@
+.youtube-panel{display:grid;gap:8px;margin:0 0 8px}
+.youtube-item{display:grid;gap:6px;padding:10px 12px;border:1px solid #94a3b855;border-left:3px solid #e11d48;border-radius:10px}
+.youtube-item-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;opacity:.85}
+.youtube-item-head a{display:inline-flex;align-items:center;gap:3px}
+.youtube-item blockquote{margin:0;padding:4px 0 4px 10px;border-left:2px solid #94a3b877;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.youtube-label{font-size:12px;font-weight:600}
+.youtube-item textarea{width:100%;box-sizing:border-box;resize:vertical;font:inherit;font-size:13px}
+.youtube-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.youtube-actions button{display:inline-flex;align-items:center;gap:5px}
+.youtube-note{margin:0;font-size:11.5px;opacity:.7}
+.youtube-error{color:#dc2626;font-size:12px;margin:0}
+.youtube-help{font-size:12px;line-height:1.5;margin:0}
+.youtube-help code{overflow-wrap:anywhere}
+.youtube-auto{display:flex!important;align-items:center;gap:8px;flex-direction:row!important}
+.settings-form .youtube-auto input,.youtube-auto input[type=checkbox]{width:16px!important;height:16px;flex:0 0 16px;margin:0}
+.youtube-auto span{flex:1}

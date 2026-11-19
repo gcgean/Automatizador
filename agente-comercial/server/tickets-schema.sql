@@ -91,3 +91,9 @@ ALTER TABLE closure_reasons ADD COLUMN IF NOT EXISTS created_by_ai boolean NOT N
 
 -- Canal da conexão: whatsapp (padrão) ou instagram. Para o Instagram, phone_number_id guarda o ID da conta e display_phone o @usuário.
 ALTER TABLE whatsapp_connections ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'whatsapp';
+
+-- YouTube (comentários dos vídeos do canal). Na conexão, phone_number_id guarda o ID do canal (UC...) e
+-- access_token_cipher o token de atualização do Google. Cada comentário lido fica aqui uma única vez.
+CREATE TABLE IF NOT EXISTS youtube_channels(connection_id text PRIMARY KEY REFERENCES whatsapp_connections(id) ON DELETE CASCADE,channel_id text,channel_title text NOT NULL DEFAULT '',whatsapp_link text NOT NULL DEFAULT '',auto_reply boolean NOT NULL DEFAULT false,connected_at timestamptz,last_poll_at timestamptz,last_error text);
+CREATE TABLE IF NOT EXISTS youtube_comments(connection_id text NOT NULL REFERENCES whatsapp_connections(id) ON DELETE CASCADE,thread_id text NOT NULL,comment_id text NOT NULL,video_id text NOT NULL DEFAULT '',video_title text NOT NULL DEFAULT '',author_channel_id text NOT NULL DEFAULT '',author_key text NOT NULL DEFAULT '',author_name text NOT NULL DEFAULT '',text text NOT NULL DEFAULT '',published_at timestamptz,status text NOT NULL DEFAULT 'new',attempts int NOT NULL DEFAULT 0,suggestion text,reason text,reply_id text,replied_at timestamptz,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(connection_id,thread_id));
+CREATE INDEX IF NOT EXISTS youtube_comments_author_idx ON youtube_comments(connection_id,author_key,published_at DESC);

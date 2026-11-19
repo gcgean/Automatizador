@@ -10,6 +10,7 @@ import {BrowserPush} from './browser-push.js';
 import {ConsultantRouting} from './consultant-routing.js';
 import {setConversationClosed} from './conversation-lifecycle.js';
 import {ClosureReasons,ReasonValidator} from './closure-reasons.js';
+import {YouTubeService,callbackPage} from './youtube.js';
 import {createProvider} from './llm.js';
 import {attendanceDashboard,dashboardFilters} from './attendance-dashboard.js';
 import {Contacts} from './contacts.js';
@@ -60,7 +61,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
   const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
   const quickReplies=registry&&media?new QuickReplies(rootStore,media):null;
   const push=registry&&rootStore.pool?(registry.push||new BrowserPush(rootStore,registry.config,auth)):null;
-  const routing=registry&&rootStore.pool?(registry.routing||new ConsultantRouting(rootStore)):null;
+  const routing=registry&&rootStore.pool?(registry.routing||new ConsultantRouting(rootStore)):null;const youtube=registry?.youtube||null;
   return async function handler(req, res) {
     let store=rootStore,inbox=baseInbox,access=null,tags=null;
     const url = new URL(req.url, 'http://localhost');
@@ -96,6 +97,12 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         return send(res, 200, 'ok');
       }
 
+      // Retorno da autorização do Google (YouTube): chega pelo navegador, sem sessão; a validade vem do state assinado.
+      if(req.method==='GET'&&url.pathname==='/youtube/callback'){
+        if(!youtube)return send(res,404,'not found');
+        let page;try{const r=await youtube.callback(url.searchParams);page=callbackPage(true,'O canal '+r.channelTitle+' está ligado à plataforma. Os comentários novos começam a aparecer em alguns minutos.');}catch(error){page=callbackPage(false,error.message);}
+        res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(page);
+      }
       const currentUser = auth ? await auth.user(req) : null;
       const authorized = () => auth ? !!currentUser : config.panelToken && req.headers.authorization === `Bearer ${config.panelToken}`;
       if (auth && req.method === 'POST' && !auth.sameOrigin(req)) return send(res,403,'Origem da solicitação inválida.');
@@ -248,6 +255,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(activate&&req.method==='POST'&&!administrator&&!currentUser.connections.includes(activate[1]))return send(res,403,'Você não tem acesso a esta conexão.');
         if(activate&&req.method==='POST'){if(companies)await companies.assertConnection(companyId,activate[1]);}
         if(activate&&req.method==='POST')return send(res,200,await registry.activate(activate[1]));
+        const youtubeConnect=url.pathname.match(/^\/connections\/([a-zA-Z0-9-]+)\/youtube$/);
+        if(youtubeConnect&&req.method==='POST'){if(!youtube)return send(res,404,'not found');if(!administrator&&!currentUser.connections.includes(youtubeConnect[1]))return send(res,403,'Você não tem acesso a esta conexão.');if(companies)await companies.assertConnection(companyId,youtubeConnect[1]);return send(res,200,{url:await youtube.authorizeUrl(youtubeConnect[1],currentUser?.id)});}
         if(url.pathname==='/contexts'&&req.method==='GET')return send(res,200,administrator?await store.listContexts(companyId):(await store.listContexts(companyId)).filter(c=>false));
         if(url.pathname==='/contexts'&&req.method==='POST'){
           if(!administrator)return send(res,403,'Gerenciar contextos compartilhados exige administrador.');
@@ -264,6 +273,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         access=new ConversationAccess(store,currentUser);tags=new TagService(store);
         const phoneRoute=url.pathname.match(/^\/(?:leads|conversations)\/(\d+)(?:\/|$)/);
         if(phoneRoute)await access.assert(phoneRoute[1]);
+        const youtubeRoute=url.pathname.match(/^\/leads\/(\d+)\/youtube(?:\/([\w-]{5,120})\/(reply|discard))?$/);
+        if(youtubeRoute){if(!youtube)return send(res,404,'not found');if(!youtubeRoute[2]&&req.method==='GET')return send(res,200,await youtube.pending(connectionId,youtubeRoute[1]));if(youtubeRoute[2]&&req.method==='POST'){const body=JSON.parse((await readBody(req)).toString()||'{}');return send(res,200,youtubeRoute[3]==='reply'?await youtube.reply(connectionId,youtubeRoute[1],youtubeRoute[2],body.text,currentUser):await youtube.discard(connectionId,youtubeRoute[1],youtubeRoute[2]));}return send(res,405,'Método não permitido.');}
         if(url.pathname.startsWith('/learning')&&!administrator)return send(res,403,'Análises de toda a conexão são exclusivas de administradores para preservar os atendimentos reservados.');
         const bodyPhoneRoutes=['/calls/start','/calls/permission','/crm/retry','/crm/deals/review'];
         if(req.method==='POST'&&bodyPhoneRoutes.includes(url.pathname)){const body=JSON.parse((await readBody(req)).toString());await access.assert(body.phone);}
@@ -492,7 +503,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(currentLead?.conversationClosed)return send(res,409,'Reabra a conversa antes de enviar mensagens.');
         if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
-        if (!events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');
+        if (!['instagram','youtube'].includes((await store.getConnection?.())?.channel) && !events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');
         if(body.sign!==undefined&&typeof body.sign!=='boolean')return send(res,400,'Opção de assinatura inválida.');
         const chooseSignature=!auth||can(currentUser,'signature.choose');
         if(!chooseSignature&&body.sign!==undefined&&body.sign!==currentUser.signature_default)return send(res,403,'Seu grupo não permite alterar a assinatura.');
@@ -601,7 +612,7 @@ async function main() {
   cadence?.bind(registry);media?.bind(registry);
   const reengagement=registry?new Reengagement(store,registry,cadence,auth):null;
   const pipeline=registry?new Pipeline(store,auth):null;
-  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.reengagement=reengagement;registry.pipeline=pipeline;await registry.init();await pipeline.init();}
+  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await pipeline.init();}
   const meta=registry?new MetaConversions(store,registry):null;
   const textImprover=registry?new TextImprover(store):null;
   if(meta){await meta.init();registry.meta=meta;if(crm)crm.deals.meta=meta;}
@@ -619,6 +630,7 @@ async function main() {
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
   const pushTimer=registry&&!config.panelOnly?setInterval(()=>registry.push.tick().catch(()=>console.error('[push] Falha ao processar notificações.')),10000):null;
+  const youtubeTimer=registry?.youtube&&!config.panelOnly?setInterval(()=>registry.youtube.tick().catch(()=>console.error('[youtube] Falha ao ler comentários.')),300000):null;
   const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
   const server=http.createServer(createApp({config, agent, store, inbox,auth,registry,learning,agenda,reminders,simulation,crm,cadence,media,calling,meta,textImprover,reengagement,pipeline})).listen(config.port, config.host, () => {
     console.log(`Agente comercial ouvindo na porta ${config.port}. Webhook: /webhook`);
@@ -630,7 +642,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(pushTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }
