@@ -26,6 +26,7 @@
 .lead-card-foot{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:auto -6px 0;padding:3px 6px;background:color-mix(in srgb,var(--connection-color,#5f6b76) 72%,#111);color:#fff;font-size:9.5px;font-weight:600;text-transform:uppercase}
 .lead-card-foot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .lead-card-foot time{flex-shrink:0}
+.lead-card-foot .channel-icon{vertical-align:-1.5px;margin-right:4px;opacity:.85}
 .lead-card.has-pending .lead-card-foot time{color:#7dffb8}
 .chat-dark .lead-card{background:#202c33;border-color:var(--chat-line);color:var(--chat-text)}
 .chat-dark .lead-card:hover{background:#2a3942}

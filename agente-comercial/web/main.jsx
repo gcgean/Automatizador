@@ -14,6 +14,7 @@ import './mobile.css';
 import './cards.css';
 import './theme.css';
 import {Contacts,ContactName,requestRename} from './contacts.jsx';
+import {ChannelIcon} from './channel-icon.jsx';
 import {ClosurePanel,ClosureReasonSettings} from './closure-reasons.jsx';
 import {Login,PasswordForm,Reports,request,clearActivation} from './account.jsx';
 import {Manage,Learning,scoped} from './manage.jsx';
@@ -56,7 +57,7 @@ function LeadCard({lead,connection,selected,blocked,disabled,onSelect}){
   <div className="lead-card-status"><span className={'tag '+(lead.temperatura||'')}>{temperatureLabel(lead)}</span><span className={'attendance-dot '+(lead.optedOut?'blocked':lead.status==='encaminhado'?'human':'auto')}>{statusLabel(lead)}</span></div>
   <div className="lead-card-preview" title={previewText(lead)}>{previewText(lead)}</div>
   <div className="lead-card-chips">{lead.salesQualification&&<span className={'integration-chip sales-'+lead.salesQualification}>{lead.salesQualification==='qualified'?'Qualificado':'Descartado'}</span>}{blocked&&<span className="integration-chip send-warning">Conferir envio</span>}{lead.crmId&&<span className="integration-chip crm" title={'Lead no CRM #'+lead.crmId}>CRM #{lead.crmId}</span>}{lead.crmDealId&&<span className="integration-chip deal" title={'Negócio #'+lead.crmDealId+' · '+dealStatusLabel(lead.crmDealStatus)}>Negócio #{lead.crmDealId}</span>}{lead.agendamentoResumo&&<span className="integration-chip appointment" title={lead.agendamentoResumo}>Agendada</span>}<TagChips tags={lead.tags} limit={2}/></div>
-  <div className="lead-card-foot"><span title={(connection?.name||'')+' · '+owner}>{connection?.name?connection.name+' · ':''}{owner}</span><time>{shortDate(lead.lastMessageAt||lead.atualizadoEm)}</time></div>
+  <div className="lead-card-foot"><span title={(connection?.name||'')+' · '+owner}>{connection&&<ChannelIcon channel={connection.channel} size={10}/>}{connection?.name?connection.name+' · ':''}{owner}</span><time>{shortDate(lead.lastMessageAt||lead.atualizadoEm)}</time></div>
  </button>;
 }
 function Leads({leads,selected,onSelect,group,onGroup,connections,tags=[],currentUser,jobs,disabled,layout='list',chatOpen=true,onToggleChat}){
