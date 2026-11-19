@@ -3,6 +3,14 @@ import {PgStore} from '../server/pg-store.js';import {requiredPermission,can,ALL
 
 test('permissões de finalização: rotas, catálogo e perfil operador',()=>{
  assert.equal(requiredPermission('/leads/5588999990001/conversation-state','POST'),'conversations.close');
+ // Rotas usadas por quem não é administrador não podem cair na regra padrão "só administrador".
+ assert.equal(requiredPermission('/closure-reasons','GET'),'conversations.view');
+ assert.equal(requiredPermission('/closure-reasons/validated','POST'),'closure-reasons.create');
+ assert.equal(requiredPermission('/closure-reasons/report','GET'),'reports.view');
+ assert.equal(requiredPermission('/reports/attendance','GET'),'reports.view');
+ assert.equal(requiredPermission('/contacts','GET'),'conversations.view');
+ assert.equal(requiredPermission('/contacts/open','POST'),'leads.manage');
+ assert.equal(requiredPermission('/closure-reasons','POST'),'admin');assert.equal(requiredPermission('/closure-reasons/settings','POST'),'admin');
  assert.ok(ALL_PERMISSIONS.includes('conversations.close'));assert.ok(ALL_PERMISSIONS.includes('closure-reasons.create'));
  assert.ok(LEGACY_PERMISSIONS.operator.includes('conversations.close'));assert.ok(!LEGACY_PERMISSIONS.viewer.includes('conversations.close'));
  assert.equal(can({role:'operator'},'closure-reasons.create'),true);

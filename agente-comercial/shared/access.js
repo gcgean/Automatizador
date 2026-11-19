@@ -10,6 +10,9 @@ export const can=(user,key)=>user?.role==='admin'||(user?.permissions||LEGACY_PE
 export function requiredPermission(path,method){
  if(path==='/contacts')return 'conversations.view';
  if(path.startsWith('/contacts/'))return 'leads.manage';
+ if(path==='/closure-reasons'&&method==='GET')return 'conversations.view';
+ if(path==='/closure-reasons/validated')return 'closure-reasons.create';
+ if(path==='/closure-reasons/report')return 'reports.view';
  if(path==='/attendances')return 'conversations.view';
  if(path==='/departments')return 'admin';
  if(path==='/ticket-departments')return 'conversations.transfer';
