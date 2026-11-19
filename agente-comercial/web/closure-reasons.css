@@ -66,3 +66,6 @@
 .closure-check.created{background:#10b9811f;border:1px solid #10b98166}
 .closure-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
 @media(max-width:600px){.closure-modal-backdrop{padding:0;align-items:stretch}.closure-modal{max-height:none;border-radius:0}}
+.closure-new{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.closure-new button{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:8px 12px}
+.closure-new span{font-size:12px;color:var(--ui-muted,#64748b)}
