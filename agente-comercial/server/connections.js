@@ -68,7 +68,7 @@ export class ConnectionRegistry{
   if(existing&&existing.phoneNumberId!==body.phoneNumberId)throw Object.assign(new Error('Para outro número, cadastre outra conexão. O histórico deste número será preservado.'),{status:409});
   for(const key of ['displayPhone','appId','wabaId','accessToken','appSecret'])if(body[key]!==undefined&&(typeof body[key]!=='string'||body[key].length>4096))throw Object.assign(new Error('Campo de conexão inválido.'),{status:400});
   for(const key of ['appId','wabaId'])if(body[key]&&!/^\d{5,30}$/.test(body[key]))throw Object.assign(new Error('Os identificadores da Meta devem conter somente números.'),{status:400});
-  if(body.appSecret&&!/^[a-f0-9]{32}$/i.test(body.appSecret))throw Object.assign(new Error('Chave secreta da Meta inválida.'),{status:400});
+  if(body.appSecret&&!/^[a-f0-9]{32}$/i.test(body.appSecret.trim()))throw Object.assign(new Error('Chave secreta da Meta inválida.'),{status:400});
   const token=body.accessToken?encryptSecret(body.accessToken.trim(),this.config.connectionsKey):null;
   const secret=body.appSecret?encryptSecret(body.appSecret.trim(),this.config.connectionsKey):null;
   try{await this.store.pool.query(`INSERT INTO whatsapp_connections(id,name,phone_number_id,display_phone,app_id,waba_id,context_id,provider,enabled,access_token_cipher,app_secret_cipher,webhook_mode,color,company_id,coexistence,channel) VALUES($1,$2,$3,$4,$5,$6,$7,$8,false,$9,$10,$12,$13,$14,$15,$16) ON CONFLICT(id) DO UPDATE SET name=excluded.name,color=excluded.color,webhook_mode=excluded.webhook_mode,display_phone=excluded.display_phone,app_id=excluded.app_id,waba_id=excluded.waba_id,context_id=excluded.context_id,provider=excluded.provider,enabled=CASE WHEN $11 THEN false ELSE whatsapp_connections.enabled END,access_token_cipher=COALESCE(excluded.access_token_cipher,whatsapp_connections.access_token_cipher),app_secret_cipher=COALESCE(excluded.app_secret_cipher,whatsapp_connections.app_secret_cipher),updated_at=now()`,[id,body.name.trim(),body.phoneNumberId,body.displayPhone||'',body.appId||(companyId==='default'?this.config.appId:''),body.wabaId||(companyId==='default'?this.config.wabaId:''),body.contextId,body.provider,token,secret,body.enabled===false||!!(existing&&existing.webhookMode!==webhookMode)||!!token||!!secret||!!(existing&&(existing.appId!==(body.appId||this.config.appId)||existing.wabaId!==(body.wabaId||this.config.wabaId))),webhookMode,color,companyId,channel==='instagram'?false:coexistence,channel]);}catch(e){if(e.code==='23505')throw Object.assign(new Error('Este ID de número já possui uma conexão cadastrada.'),{status:409});throw e;}
@@ -120,13 +120,26 @@ export class ConnectionRegistry{
   if(!c.accessToken||!c.appId||!c.appSecret)throw Object.assign(new Error('Cadastre o token do Instagram, o ID do app e a chave secreta do app.'),{status:400});
   let username='';
   if(igLogin){const me=await call(ig+'/me?fields=user_id,username',c.accessToken);if(String(me.user_id||me.id)!==String(c.phoneNumberId))throw Object.assign(new Error('O token é da conta @'+(me.username||'?')+', com outro ID. Confira o ID da conta do Instagram.'),{status:400});username=me.username||'';}
-  else{const account=await call(fb+'/'+c.phoneNumberId+'?fields=username',c.accessToken);username=account.username||'';}
+  else{
+   // Login do Facebook: webhook e envio passam pela Página ligada à conta. Token de usuário (inclusive de usuário do sistema)
+   // é trocado pelo token da Página, que é o aceito em /me/messages e /me/subscribed_apps.
+   const nested='instagram_business_account{id,username}',page=await call(fb+'/me?fields=id,'+nested,c.accessToken).catch(()=>null);
+   let pageToken=c.accessToken,account=page?.instagram_business_account;
+   if(String(account?.id||'')!==String(c.phoneNumberId)){
+    const pages=await call(fb+'/me/accounts?limit=100&fields=id,access_token,'+nested,c.accessToken).catch(()=>({data:[]}));
+    const match=(pages.data||[]).find(p=>String(p.instagram_business_account?.id||'')===String(c.phoneNumberId));
+    if(!match?.access_token)throw Object.assign(new Error('O token não dá acesso à Página do Facebook ligada a esta conta do Instagram. Confira se a Página está atribuída ao usuário do sistema e se o ID da conta do Instagram está certo.'),{status:400});
+    pageToken=match.access_token;account=match.instagram_business_account;
+   }
+   username=account.username||'';
+   if(pageToken!==c.accessToken){await this.store.pool.query('UPDATE whatsapp_connections SET access_token_cipher=$2,updated_at=now() WHERE id=$1',[id,encryptSecret(pageToken,this.config.connectionsKey)]);c.accessToken=pageToken;}
+  }
   const appToken=c.appId+'|'+c.appSecret,subscriptions=await call(fb+'/'+c.appId+'/subscriptions',appToken),callback=this.config.publicUrl+'/webhook';
   if(subscriptions.data?.some(s=>s.object==='instagram'&&s.active&&s.callback_url!==callback))throw Object.assign(new Error('Este aplicativo já tem outro webhook do Instagram ativo. Use um aplicativo dedicado para não interromper a integração existente.'),{status:409});
   const fields=['messages','messaging_postbacks','message_reactions'];
   await call(fb+'/'+c.appId+'/subscriptions',appToken,{object:'instagram',callback_url:callback,verify_token:this.config.verifyToken,fields:fields.join(','),include_values:'true'});
   await call(ig+'/me/subscribed_apps',c.accessToken,{subscribed_fields:fields.join(',')});
-  await this.store.pool.query('UPDATE whatsapp_connections SET enabled=true,display_phone=$2,updated_at=now() WHERE id=$1',[id,username?'@'+username:'']);
+  await this.store.pool.query('UPDATE whatsapp_connections SET enabled=true,display_phone=$2,updated_at=now() WHERE id=$1',[id,username?'@'+username:'']);this.runtimes.delete(id);
   return (await this.list()).find(x=>x.id===id);
  }
  async drain(){await Promise.all([...this.runtimes.values()].map(r=>r.inbox.drain()));}

@@ -64,8 +64,9 @@ test('Instagram: cadastro, ativação e recebimento numa conexão real',{skip:!p
   await store.init();process.env.DEEPSEEK_API_KEY='test-only-key';
   const cfg=loadConfig({PAINEL_TOKEN:'qa-api-key',WHATSAPP_ACCESS_TOKEN:'server-token',WHATSAPP_APP_SECRET:'a'.repeat(32),CONNECTIONS_ENCRYPTION_KEY:'b'.repeat(64),ROTEIRO_FILE:new URL('../server/roteiro-comercial.md',import.meta.url).pathname.replace(/^\/C:/,'C:'),AI_PROVIDER:'deepseek',PUBLIC_URL:'https://comercial.example',VERIFY_TOKEN:'verify-qa'});
   const sent=[];
-  const fetchImpl=async(u,options={})=>{const body=options.body?(options.body instanceof URLSearchParams?Object.fromEntries(options.body):JSON.parse(options.body)):null;sent.push({url:u,method:options.method||'GET',body});
-   const json=u.includes('/me?fields=user_id,username')?{user_id:ACCOUNT,username:'lojaqa'}:u.includes('/subscriptions')&&!body?{data:[]}:u.includes('/'+CLIENT+'?fields=name,username')?{name:'Cliente IG',username:'cliente.ig'}:u.endsWith('/me/messages')?{recipient_id:CLIENT,message_id:'mid-x'}:{success:true};
+  const fetchImpl=async(u,options={})=>{const body=options.body?(options.body instanceof URLSearchParams?Object.fromEntries(options.body):JSON.parse(options.body)):null;sent.push({url:u,method:options.method||'GET',body,auth:options.headers?.Authorization});
+   if(u.includes('/me?fields=id,instagram_business_account'))return {ok:false,status:400,json:async()=>({error:{code:100,message:'campo inexistente para usuário'}})};
+   const json=u.includes('/me?fields=user_id,username')?{user_id:ACCOUNT,username:'lojaqa'}:u.includes('/subscriptions')&&!body?{data:[]}:u.includes('/me/accounts')?{data:[{id:'PAGE1',access_token:'EAApage-token',instagram_business_account:{id:'17841488888888888',username:'lojafb'}}]}:u.includes('/'+CLIENT+'?fields=name,username')?{name:'Cliente IG',username:'cliente.ig'}:u.endsWith('/me/messages')?{recipient_id:CLIENT,message_id:'mid-x'}:{success:true};
    return {ok:true,status:200,json:async()=>json};};
   const registry=new ConnectionRegistry(store,cfg,{fetchImpl});await registry.init();
   const context=(await store.listContexts())[0];
@@ -78,6 +79,13 @@ test('Instagram: cadastro, ativação e recebimento numa conexão real',{skip:!p
   // Token de outra conta é recusado na ativação.
   const other=await registry.save({channel:'instagram',name:'Outra',phoneNumberId:'17841499999999999',appId:'123456',accessToken:'IGAAother',appSecret:'d'.repeat(32),contextId:context.id,provider:'deepseek'});
   await assert.rejects(registry.activate(other.id),/outro ID/);
+  // Token de usuário do sistema (login do Facebook): é trocado pelo token da Página ligada à conta.
+  const viaPage=await registry.save({channel:'instagram',name:'IG via Página',phoneNumberId:'17841488888888888',appId:'123456',accessToken:'EAAsystem-user',appSecret:' '+'d'.repeat(32)+' ',contextId:context.id,provider:'deepseek'});
+  const before=sent.length,pageActive=await registry.activate(viaPage.id);assert.equal(pageActive.displayPhone,'@lojafb');
+  const pageSub=sent.slice(before).find(s=>s.url==='https://graph.facebook.com/'+cfg.graphVersion+'/me/subscribed_apps'&&s.body);assert.equal(pageSub.auth,'Bearer EAApage-token');
+  assert.equal((await registry.configFor(viaPage.id)).accessToken,'EAApage-token');
+  const noPage=await registry.save({channel:'instagram',name:'IG sem Página',phoneNumberId:'17841477777777777',appId:'123456',accessToken:'EAAsystem-user',appSecret:'d'.repeat(32),contextId:context.id,provider:'deepseek'});
+  await assert.rejects(registry.activate(noPage.id),/Página do Facebook/);
   // Recebimento: assinatura do app, perfil do cliente e mensagem na caixa de entrada.
   const runtime=await registry.runtime(ig.id),received=[];runtime.inbox.agent={enqueue:async m=>{received.push(m);return null;}};
   const body=payload(event({mid:'m-real',text:'Oi, quero saber o preço'}));const raw=Buffer.from(JSON.stringify(body));
