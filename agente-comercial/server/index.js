@@ -533,7 +533,10 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
   };
 }
 
+// A Cloudflare troca respostas 502/504 pela página dela de "Bad gateway" e esconde a mensagem.
+// Falhas de serviços externos (Meta, IA, CRM) saem como 424 para a mensagem chegar à tela.
 function send(res, status, body) {
+  if (status === 502 || status === 504) status = 424;
   const json = typeof body !== 'string';
   res.writeHead(status, {'Content-Type': json ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8'});
   res.end(json ? JSON.stringify(body) : body);
