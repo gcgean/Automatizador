@@ -13,8 +13,9 @@ function remembered(user,connection){try{return localStorage.getItem(readyKey(us
 export function CallingProvider({connectionId,connections,user,onActive,children}){
  const enabled=can(user,'calls.use'),[clientId]=useState(()=>crypto.randomUUID());
  const [settings,setSettings]=useState(null),[calls,setCalls]=useState([]),[active,setActive]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[muted,setMuted]=useState(false),[online,setOnline]=useState(()=>remembered(user,connectionId)),[permissionTarget,setPermissionTarget]=useState(null);
- const audio=useRef(null),peer=useRef(null),stream=useRef(null),current=useRef(null),live=useRef(true),pollBusy=useRef(false),answerApplied=useRef(false),ring=useRef(null),ringed=useRef(new Set()),busyRef=useRef(false),connectionsRef=useRef(connections),selectedConnection=useRef(connectionId);
- connectionsRef.current=connections;selectedConnection.current=connectionId;
+ const audio=useRef(null),peer=useRef(null),stream=useRef(null),current=useRef(null),live=useRef(true),pollBusy=useRef(false),answerApplied=useRef(false),ring=useRef(null),ringed=useRef(new Set()),busyRef=useRef(false),connectionsRef=useRef(connections),selectedConnection=useRef(connectionId),pollFailures=useRef(0);
+ // Ligações só existem no WhatsApp; Instagram e YouTube ficam fora da consulta.
+ connectionsRef.current=connections.filter(c=>(c.channel||'whatsapp')==='whatsapp');selectedConnection.current=connectionId;
  const api=(connection,path,body)=>request(scoped(path,connection),body);
  function setCurrent(value){current.current=value;setActive(value);onActive(!!value);}
  function release(){peer.current?.close();peer.current=null;stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;answerApplied.current=false;if(audio.current)audio.current.srcObject=null;}
@@ -46,7 +47,9 @@ export function CallingProvider({connectionId,connections,user,onActive,children
      const key=call.connectionId+':'+call.id;
      if(remembered(user,call.connectionId)&&ring.current&&!ringed.current.has(key)){ringed.current.add(key);await ring.current.resume();const oscillator=ring.current.createOscillator(),gain=ring.current.createGain();oscillator.frequency.value=660;gain.gain.value=.08;oscillator.connect(gain);gain.connect(ring.current.destination);oscillator.start();oscillator.stop(ring.current.currentTime+.5);}
     }
-    const failed=results.find(r=>r.error&&![401,403,404].includes(r.error.status));if(failed)setError('Não foi possível atualizar as ligações de uma conexão. Tentaremos novamente.');
+    // A consulta roda a cada segundo: uma falha isolada (ex.: servidor reiniciando) não vira aviso; só falhas seguidas por ~10 s.
+    const failed=results.find(r=>r.error&&![401,403,404].includes(r.error.status));pollFailures.current=failed?pollFailures.current+1:0;
+    if(failed&&pollFailures.current===10)setError('Não foi possível atualizar as ligações de uma conexão. Tentaremos novamente.');
    }catch(e){if(live.current)setError(microphoneError(e));}finally{pollBusy.current=false;}
   }
   poll();const timer=setInterval(poll,1000),unload=()=>release();window.addEventListener('pagehide',unload);

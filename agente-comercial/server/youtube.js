@@ -165,7 +165,7 @@ export class YouTubeService{
    await this.pool.query(`INSERT INTO youtube_comments(connection_id,thread_id,comment_id,video_id,author_channel_id,author_key,author_name,text,published_at,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,[connectionId,item.id,item.snippet?.topLevelComment?.id||item.id,item.snippet?.videoId||top.videoId||'',author,youtubeKey(author),String(top.authorDisplayName||'').slice(0,120),String(top.textOriginal||top.textDisplay||'').slice(0,5000),new Date(published).toISOString(),answered?'answered_elsewhere':'new']);
   }
   const {rows}=await this.pool.query(`SELECT * FROM youtube_comments WHERE connection_id=$1 AND status='new' ORDER BY published_at LIMIT 20`,[connectionId]);
-  if(!rows.length)return {processed:0};
+  if(!rows.length){await this.pool.query('UPDATE youtube_channels SET last_poll_at=now(),last_error=NULL WHERE connection_id=$1',[connectionId]);return {processed:0};}
   const ids=[...new Set(rows.map(r=>r.video_id).filter(id=>id&&!rows.find(x=>x.video_id===id)?.video_title))];
   const titles=new Map();if(ids.length){const videos=await client.api('/videos?'+new URLSearchParams({part:'snippet',id:ids.join(',')})).catch(()=>({items:[]}));for(const v of videos.items||[])titles.set(v.id,String(v.snippet?.title||'').slice(0,200));}
   const runtime=await this.registry.runtime(connectionId),link=await this.link(connectionId);

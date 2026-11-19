@@ -68,6 +68,7 @@ test('YouTube: conectar canal, triar comentários, aprovar e responder automáti
   assert.equal(sent.filter(s=>s.url.endsWith('/comments?part=snippet')).length,0,'nada publicado sem aprovação');
   // Segunda leitura não repete comentários.
   await youtube.poll(yt.id);await registry.drain();assert.equal((await runtime.store.getEvents(maria)).filter(e=>e.direction==='in').length,1);
+  await store.pool.query('UPDATE youtube_channels SET last_poll_at=NULL');await youtube.poll(yt.id);assert.ok((await youtube.settings(yt.id)).last_poll_at,'leitura sem comentário novo também registra o horário');
   // Aprovação: publica como resposta ao comentário.
   await assert.rejects(youtube.reply(yt.id,maria,'Ugx-spam','oi',null),/não encontrado/);
   pending=await youtube.reply(yt.id,maria,'Ugx-maria','Olá, Maria! Chama a gente no WhatsApp: '+LINK,{id:'u1',name:'Gean'});
@@ -91,6 +92,7 @@ test('YouTube: conectar canal, triar comentários, aprovar e responder automáti
   youtube.tokens.clear();const revoked=new YouTubeService(store,registry,{fetchImpl:async()=>({ok:false,status:400,json:async()=>({error:'invalid_grant'})}),providerFactory,log:{error(){}}});
   await assert.rejects(revoked.poll(yt.id),e=>e.status===424&&/Conecte a conta Google de novo/.test(e.message));
   // Outros módulos recusam o YouTube.
+  const {CallingService}=await import('../server/calling.js');assert.equal((await new CallingService(store,cfg,{fetchImpl:async()=>{throw new Error('não deve chamar a Meta');}}).settings(yt.id)).status,'UNAVAILABLE');
   const {Contacts}=await import('../server/contacts.js');await assert.rejects(new Contacts(store).save(yt.id,{phone:'88999990001',name:'X'},{id:crypto.randomUUID()}),/YouTube/);
  }finally{await store.close();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end();}
 });

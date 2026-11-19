@@ -26,7 +26,7 @@ export class CallingService {
   if(!response.ok)throw Object.assign(fail('A Meta recusou a operação de ligação (código '+(data.error?.code||response.status)+'). '+({138006:'O cliente precisa autorizar a ligação.',138000:'Habilite as chamadas deste número.',131047:'O cliente precisa enviar uma mensagem para abrir a janela de atendimento.'}[data.error?.code]||'Confira a configuração e a autorização do cliente.'),502),{definite:true});
   return data;
  }
- async settings(connection){const d=await this.graph(connection,'settings');return {status:d.calling?.status||'NOT_SET',visibility:d.calling?.call_icon_visibility||'NOT_SET',iceServers:this.config.callIceServers||[]};}
+ async settings(connection){if(((await this.store.getConnection(connection))?.channel||'whatsapp')!=='whatsapp')return {status:'UNAVAILABLE',visibility:'NOT_SET',iceServers:[]};const d=await this.graph(connection,'settings');return {status:d.calling?.status||'NOT_SET',visibility:d.calling?.call_icon_visibility||'NOT_SET',iceServers:this.config.callIceServers||[]};}
  async configure(connection,enabled){if(typeof enabled!=='boolean')throw fail('Configuração inválida.');await this.graph(connection,'settings',{calling:{status:enabled?'ENABLED':'DISABLED',call_icon_visibility:enabled?'DEFAULT':'DISABLE_ALL',callback_permission_status:enabled?'ENABLED':'DISABLED'}});return this.settings(connection);}
  async permission(connection,to){if(!phone(to))throw fail('Telefone inválido.');const d=await this.graph(connection,'call_permissions?user_wa_id='+encodeURIComponent(to));return {permission:d.permission,actions:d.actions||[]};}
  async contact(connection,to){

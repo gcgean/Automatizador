@@ -256,7 +256,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         }
         if(url.pathname==='/connections' && req.method==='GET'){
           const all=(await registry.list()).filter(c=>c.companyId===companyId);
-          return send(res,200,administrator?all:all.filter(c=>currentUser.connections.includes(c.id)).map(c=>can(currentUser,'connections.manage')?c:({id:c.id,name:c.name,color:c.color,displayPhone:c.displayPhone,enabled:c.enabled,provider:c.provider})));
+          return send(res,200,administrator?all:all.filter(c=>currentUser.connections.includes(c.id)).map(c=>can(currentUser,'connections.manage')?c:({id:c.id,name:c.name,color:c.color,displayPhone:c.displayPhone,enabled:c.enabled,provider:c.provider,channel:c.channel})));
         }
         if(url.pathname==='/connections' && req.method==='POST'&&!administrator)return send(res,403,'A criação e edição de conexões exige administrador.');
         if(url.pathname==='/connections' && req.method==='POST')return send(res,200,await registry.save(JSON.parse((await readBody(req)).toString()),companyId));
