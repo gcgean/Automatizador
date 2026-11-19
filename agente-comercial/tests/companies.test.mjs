@@ -27,8 +27,12 @@ test('empresas: migração preserva operação, administradores isolados, seleç
   const setup=async(email,token)=>{const r=await post('/auth/setup',{email,password:'Test-password-2026',setupToken:token});assert.equal(r.status,200,await r.clone().text());return {cookie:r.headers.get('set-cookie').split(';')[0],user:await r.json()};};
   const owner=await setup('owner@example.com','owner-test-activation');assert.equal(owner.user.platform_admin,true);assert.equal(owner.user.company_id,'default');
   await store.init();assert.equal((await store.getEvents('5511999900000')).length,1);assert.equal((await registry.list())[0].companyId,'default');
-  const createCompany=async name=>{const r=await post('/companies',{name,document:'',contact_email:'',active:true},owner.cookie);assert.equal(r.status,201);return (await r.json()).id;};
+  const createCompany=async name=>{const r=await post('/companies',{name,document:name==='Empresa A'?'529.982.247-25':'11.222.333/0001-81',contact_email:'',active:true},owner.cookie);assert.equal(r.status,201);return (await r.json()).id;};
   const companyA=await createCompany('Empresa A'),companyB=await createCompany('Empresa B');
+  for(const document of ['', '11111111111', '52998224724'])assert.equal((await post('/companies',{name:'Inválida',document,active:true},owner.cookie)).status,400);
+  const duplicates=await Promise.all([post('/companies',{name:'Duplicada',document:'52998224725',active:true},owner.cookie),post('/companies',{name:'Duplicada CNPJ',document:'11222333000181',active:true},owner.cookie)]);assert.ok(duplicates.every(r=>r.status===409));
+  assert.equal((await post('/companies/'+companyB,{name:'Empresa B',document:'529.982.247-25',active:true},owner.cookie)).status,409);
+  const racing=await Promise.all([post('/companies',{name:'Concorrente A',document:'12.ABC.345/01DE-35',active:true},owner.cookie),post('/companies',{name:'Concorrente B',document:'12abc34501de35',active:true},owner.cookie)]);assert.deepEqual(racing.map(r=>r.status).sort(),[201,409]);
   const select=async id=>{const r=await post('/companies/select',{companyId:id},owner.cookie);assert.equal(r.status,200);assert.equal((await r.json()).company_id,id);};
   const resources=async(id,suffix)=>{
    await select(id);
@@ -66,7 +70,7 @@ test('empresas: migração preserva operação, administradores isolados, seleç
   await store.scope(a.connection.id).saveSettings({context:'Contexto A atualizado'});assert.equal((await store.getConnection(a.connection.id)).contextBody,'Contexto A atualizado');assert.equal((await store.getConnection(b.connection.id)).contextBody,'Produto exclusivo B');
   assert.equal((await get('/meta-costs?connections='+b.connection.id+'&from=2026-11-11&to=2026-11-12',ac)).status,404);
   await store.pool.query('UPDATE whatsapp_connections SET enabled=true WHERE id=$1',[a.connection.id]);assert.equal((await registry.configFor(a.connection.id)).enabled,true);
-  await select(companyB);assert.equal((await post('/companies/'+companyA,{name:'Empresa A',document:'',contact_email:'',active:false},owner.cookie)).status,200);
+  await select(companyB);assert.equal((await post('/companies/'+companyA,{name:'Empresa A',document:'52998224725',contact_email:'',active:false},owner.cookie)).status,200);
   assert.equal((await get('/auth/me',ac)).status,401);assert.equal((await registry.configFor(a.connection.id)).enabled,false);
   assert.equal((await get('/auth/me',b.user.cookie)).status,200);
   await select('default');assert.equal((await get('/auth/me',owner.cookie)).status,200);assert.equal((await store.getEvents('5511999900000')).length,1);assert.equal(external,0);

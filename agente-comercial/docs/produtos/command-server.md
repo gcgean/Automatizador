@@ -1,6 +1,6 @@
 # Command Server — conhecimento comercial da Command
 
-Fonte oficial fornecida pelo responsável: https://app.commandserver.com.br/api/public/versoes, com formato texto opcional. Consulta autorizada em 13/11/2026, resposta HTTP 200, versão atual 1.23.0 (publicada em 12/11/2026). Os recursos abaixo são descritos pela API oficial de versões; não foram testados operacionalmente nesta conferência. A fonte não apresenta tabela de preços nem uma matriz completa de planos.
+Fonte oficial fornecida pelo responsável: https://app.commandserver.com.br/api/public/versoes, com formato texto opcional. Consulta autorizada em 19/11/2026, resposta HTTP 200, versão atual 1.62.0 (publicada em 19/11/2026). Os recursos abaixo são descritos pela API oficial de versões; não foram testados operacionalmente nesta conferência. A fonte não apresenta tabela de preços nem uma matriz completa de planos.
 
 ## Produto e acesso
 
@@ -25,11 +25,28 @@ Sistema de gestão web para vendas, PDV, estoque, financeiro e emissão fiscal, 
 
 A fonte descreve assistentes internos capazes de ajudar a cadastrar produtos/regras, preparar vendas e documentos fiscais, lançar entradas, configurar NFS-e, montar etiquetas, níveis de acesso e interpretar relatórios. Pode receber textos, arquivos e fotos em fluxos específicos. A API informa apresentação prévia e confirmação do usuário para as ações; não prometer que a IA decide impostos, emite documentos ou altera dados livremente sem conferência.
 
-“Corrigir com IA” explica rejeições fiscais e propõe correções com confirmação antes de reenviar. Não garantir autorização da SEFAZ/prefeitura nem substituição da orientação contábil. Os créditos da IA são separados dos créditos para emissão de notas, segundo a versão 1.4.2.
+“Corrigir com IA” explica rejeições fiscais e propõe correções com confirmação antes de reenviar. Não garantir autorização da SEFAZ/prefeitura nem substituição da orientação contábil. A versão 1.59.0 passou a descrever os assistentes pelo Suporte/Ethan sem consumo de créditos de IA, substituindo a informação antiga para esse fluxo. Não estender essa condição a créditos de emissão, tarifas bancárias, planos ou outros serviços.
 
 Esse assistente interno é diferente da IARA que conversa pelo WhatsApp. Ter o recurso no produto não concede à IARA comercial acesso às contas, vendas, dados financeiros ou emissão de notas do cliente. A IARA pode explicar a funcionalidade e encaminhar demonstração; não afirmar que executou essas operações.
 
 ## Novidades e limites atuais
+
+### Revisão confirmada em 19/11/2026 — versões 1.24.0 a 1.62.0
+
+- **Suporte Ethan (1.56.0–1.62.0):** chat de ajuda no topo, painel ao lado da tela e orientação com identificação de botões e campos. A fonte descreve preenchimento e ações assistidas, como cadastro, entradas de estoque e cancelamento de vendas com conferência e confirmação. Os assistentes das telas passaram a ser acessados pelo Suporte sem consumo de créditos de IA. Pode abrir o WhatsApp do suporte humano com resumo; não significa transferência já atendida nem suporte humano gratuito ou disponível 24 horas. Esse recurso interno não concede à IA comercial do WhatsApp acesso operacional ao sistema do cliente.
+- **Oficina e ordens de serviço (1.24.0–1.36.0):** veículos, donos e histórico, marcas/modelos, mecânicos e ajudantes, peças e serviços, etapas configuráveis, diagnóstico, checklists com fotos, anexos PDF, auditoria e garantia. Orçamentos podem virar OS; faturamento pode ser total, só peças ou só serviços, com vínculos entre OS e vendas. Há pagamentos parciais, crédito reservado à OS e tratamento do saldo no cancelamento. Confirmar módulo, plano e configuração fiscal.
+- **Relatórios da oficina (1.34.0–1.36.0):** serviços por mecânico, peças, OS por cliente/status, faturamento, lucro, prazo e garantia, além de histórico do veículo com resumo assistido por IA. Dados dependem dos lançamentos e custos cadastrados; não garantir lucro ou diagnóstico mecânico.
+- **Escritórios contábeis (1.37.0):** menu próprio e área Meus clientes para acompanhar empresas, consumo do pacote de notas, certificados e emissões, com acesso à empresa e criação de login conforme permissão. A fonte também descreve primeiros passos para a primeira nota. Limites, cobrança e inclusão de empresas dependem da assinatura; não inventar preço ou gratuidade geral.
+- **Inventário e conferência (1.48.0):** contagem por código, leitor ou câmera do celular, prévia do ajuste antes de fechar, tratamento de movimentações posteriores à contagem, relatórios de diferenças e contagem rotativa. Zerar não contados e desativar produtos são opções que exigem revisão; não apresentar como ações automáticas obrigatórias.
+- **Formas de venda e entrada de mercadoria (1.43.0, 1.46.0, 1.55.1 e 1.60.0–1.60.2):** produto com formas de venda por unidade, saco/kg ou fardo, código e preço próprios e baixa convertida no estoque. Na entrada, rateio de item sortido em vários produtos, vínculo/cadastro por código de barras e preenchimento de conversões, margens e regras com prévia. Conversões e dados fiscais precisam de conferência.
+- **Boletos (1.49.0–1.55.0):** configuração de cobrança, boleto nas parcelas, carnê, gerenciador por situação, ocorrências, arquivos de remessa e retorno, registro/consulta pela API bancária, consulta automática de pagamentos e webhook do banco, além de envio de PDF por e-mail. Exige módulo, contrato bancário, credenciais e configuração compatíveis; a fonte não confirma suporte universal a bancos ou ausência de tarifas. Baixa por retorno/API não equivale a conciliação bancária universal.
+- **Contratos recorrentes (1.50.0):** geração mensal do Contas a Receber e NFS-e no recebimento ou junto ao título, conforme configuração, com histórico de títulos e notas. Disponibilidade fiscal, autorização municipal e configuração permanecem requisitos; não prometer emissão garantida.
+- **NF-e e serviços (1.38.1–1.38.2, 1.45.0, 1.51.0 e 1.59.1):** melhorias no quadro IBS/CBS da NFS-e nacional, NF-e complementar de ICMS, duplicatas parceladas e geração de Contas a Receber por NF-e avulsa de venda autorizada. Há correção de cenário de ICMS-ST retido. Explicar a funcionalidade, sem transformar notas de versão em orientação tributária ou garantia de autorização; confirmar regras com o contador.
+- **Relatórios, fotos e impressão (1.35.0, 1.38.0–1.44.0 e 1.47.0):** prévia A4/PDF, compartilhamento pelo celular, exportação Excel/PDF/CSV com seleção de colunas e cópia como tabela, fotos de produtos e logo nos documentos. Compartilhamento de impressora exige computador ligado e Agente de Impressão 1.7.0 nos equipamentos, segundo a fonte.
+- **Uso diário (1.46.1, 1.57.0 e 1.61.0):** áudio para preencher o texto do assistente e conferir antes do envio, consulta das novidades no menu do usuário e busca de pré-vendas/orçamentos no PDV para faturar. Não confundir ditado com envio automático de áudio ao cliente.
+
+A API comprova a descrição publicada pelo fornecedor; estes fluxos não foram executados em contas de clientes nesta revisão. A ressalva de PIX da versão 1.9.0 permanece: cadastro/teste de QR dinâmico não comprova cobrança integrada no caixa. Nenhum preço de assinatura foi atualizado.
+
 
 - **1.23.0:** alteração rápida em lote de regras fiscais, NCM, CEST e origem de produtos, com filtros e prévia dos registros e mudanças antes da confirmação. Não substitui validação contábil.
 - **1.22.0 e 1.19.0:** importação Excel de contas a pagar e receber e assistente de IA para interpretar colunas, vincular/cadastrar fornecedores ou clientes, revisar e lançar após confirmação; a importação descrita ignora títulos já lançados. Não prometer conciliação bancária automática.
@@ -59,3 +76,13 @@ Ler versões novas e correções de versões antigas, revisar disponibilidade re
 
 
 Revisão de 13/11/2026: comparadas todas as notas da API, incluindo alterações na nota antiga 1.13.0. A ressalva de PIX 1.9.0 permanece: cobrança no caixa ainda é anunciada como futura. Preços não são fornecidos por esta API.
+
+## Oferta para contadores — página oficial (19/11/2026)
+
+Quando o cliente se identificar como contador ou escritório contábil e demonstrar interesse em conhecer a oferta, conecte a apresentação à necessidade dele: "Temos uma oferta exclusiva para contadores, que pode ser muito interessante para o seu escritório. Quer conhecer?" Não presuma a profissão apenas porque mencionou o próprio contador. Se já pediu a oferta ou o link, esse interesse já autoriza compartilhar, sem perguntar novamente.
+
+Após aceitar, envie https://commandweb.net/contador com um resumo curto: "Você pode reunir as empresas dos seus clientes em uma conta e emitir NF-e, CT-e e NFS-e, com pacotes compartilhados entre elas. A página apresenta clientes ilimitados e MDF-e sem custo. Veja os detalhes e planos aqui: https://commandweb.net/contador". Escolha os benefícios pertinentes, sem despejar a página inteira. Não confunda esta oferta com outros produtos Command ou Cilos.
+
+Continue naturalmente: "O que achou? Faz sentido para a rotina do seu escritório?" Pergunte uma coisa por vez e use a resposta para esclarecer dúvidas ou entender o volume de documentos. Se ainda não abriu, dê espaço; não insista nem repita o link. Se não quiser conhecer, respeite e responda à necessidade atual. Não prometa contato futuro automático nem crie cadência por esta instrução. Não responda a mensagens automáticas de ausência.
+
+Fonte oficial: https://commandweb.net/contador, conferida em 19/11/2026. Preços, limites e condições podem mudar: não invente desconto, prazo promocional, teste gratuito ou compatibilidade de certificado. Consulte a página atual ou encaminhe confirmação à equipe quando necessário. Cada empresa utiliza seu próprio certificado; não afirme suporte a A3 sem confirmação. Cadastro grátis não significa emissão gratuita de todos os documentos.

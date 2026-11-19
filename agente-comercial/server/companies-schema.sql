@@ -4,6 +4,10 @@ CREATE TABLE IF NOT EXISTS companies (
  active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO companies(id,name) VALUES('default','Operação atual') ON CONFLICT DO NOTHING;
+-- Legacy companies without a document remain accessible for regularization.
+CREATE UNIQUE INDEX IF NOT EXISTS companies_document_unique
+ ON companies (upper(regexp_replace(document,'[^a-zA-Z0-9]','','g')))
+ WHERE document<>'';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id text NOT NULL DEFAULT 'default' REFERENCES companies(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS platform_admin boolean NOT NULL DEFAULT false;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS company_id text REFERENCES companies(id);

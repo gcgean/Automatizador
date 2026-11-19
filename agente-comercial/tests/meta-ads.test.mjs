@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import crypto from 'node:crypto';import {Pool} from 'pg';import {PgStore} from '../server/pg-store.js';import {MetaAds,adMetrics,scopeAd,isRecruitment,qualificationReport} from '../server/meta-ads.js';
+import {MetaAnalysis} from '../server/meta-analysis.js';
 test('métricas Meta não somam leads a conversas nem aceitam gasto ausente',()=>{const r=adMetrics({spend:'12.50',impressions:'100',clicks:'10',actions:[{action_type:'lead',value:'2'},{action_type:'onsite_conversion.messaging_conversation_started_7d',value:'4'}]});assert.equal(r.conversations,4);assert.equal(r.metaLeads,2);assert.equal(r.spend,12.5);assert.throws(()=>adMetrics({impressions:'1',clicks:'1'}));assert.throws(()=>adMetrics({spend:'1',impressions:'1',clicks:'1',actions:[{action_type:'lead',value:'x'}]}));});
 test('anúncios: token cifrado, empresa, paginação, atribuição local, ausência e falha',{skip:!process.env.TEST_DATABASE_URL},async()=>{
  const url=new URL(process.env.TEST_DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'5548');const db=new Pool({connectionString:url.toString()}),schema='ads_'+crypto.randomBytes(8).toString('hex');await db.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);const store=new PgStore(url.toString(),'.');
@@ -9,8 +10,38 @@ test('anúncios: token cifrado, empresa, paginação, atribuição local, ausên
  const pending=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13'});assert.equal(pending.scopeReady,false);assert.equal(pending.accountTotals.spend,30);assert.equal(pending.totals.estimatedCostPerContact,null);
  await ads.saveScopes(admin,{scopes:[{campaignId:'999991',connectionId:'default',purpose:'commercial',destination:'whatsapp',phone:'5511999900000',phoneConfirmed:true},{campaignId:'999992',connectionId:'cilos',purpose:'commercial',destination:'page_whatsapp',phone:null,phoneConfirmed:false}]});
  await assert.rejects(ads.saveScopes(admin,{scopes:[{campaignId:'999993',connectionId:'default',purpose:'commercial',destination:'whatsapp',phone:'5511999900000',phoneConfirmed:true}]}),/recrutamento/);
- const result=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13'});assert.equal(result.status,'ok');assert.equal(result.totals.spend,30);assert.equal(result.totals.conversations,4);assert.equal(result.totals.metaLeads,2);assert.equal(result.totals.contacts,1);assert.equal(result.totals.estimatedCostPerContact,20);assert.equal(result.totals.eligibleSpend,20);assert.equal(result.accountTotals.spend,30);assert.equal(result.rows[0].estimatedCostPerContact,20);assert.equal(result.totals.won,1);assert.ok(calls.some(c=>c.after==='page2'));assert.ok(calls.every(c=>!c.path.includes('untrusted')));
- const command=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['default']});assert.equal(command.totals.spend,20);assert.equal(command.rows.length,1);const cilos=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['cilos']});assert.equal(cilos.totals.spend,10);assert.equal(cilos.totals.estimatedCostPerContact,null);assert.equal(cilos.rows[0].cplEligible,false);
+ const result=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13'});assert.equal(result.status,'ok');assert.equal(result.totals.spend,30);assert.equal(result.totals.conversations,4);assert.equal(result.totals.metaLeads,2);assert.equal(result.totals.contacts,1);assert.equal(result.totals.estimatedCostPerContact,20);assert.equal(result.totals.eligibleSpend,20);assert.equal(result.accountTotals.spend,30);assert.equal(result.rows[0].estimatedCostPerContact,20);assert.equal(result.totals.won,0);assert.ok(calls.some(c=>c.after==='page2'));assert.ok(calls.every(c=>!c.path.includes('untrusted')));
+ const sale={status:'won',value:250,finishedAt:'2026-11-13T20:00:00.000Z',verifiedAt:new Date().toISOString()};
+ await store.pool.query("INSERT INTO crm_deals(id,connection_id,phone,client_id,reference,remote_id,state,reporting_snapshot) VALUES($1,'default','5511999900000','10','qa-sale','101','linked',$2)",[crypto.randomUUID(),sale]);
+ const command=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['default']});assert.equal(command.totals.spend,20);assert.equal(command.rows.length,1);
+ const delegated={...admin,role:'operator',permissions:['meta.dashboard.view'],connections:['default']};
+ const scoped=await ads.report(delegated,{from:'2026-11-13',to:'2026-11-13'});
+ assert.equal(scoped.accountTotals,null);
+ assert.equal(scoped.totals.spend,20);
+ assert.deepEqual(scoped.rows.map(row=>row.connectionId),['default']);
+ await assert.rejects(ads.report(delegated,{from:'2026-11-13',to:'2026-11-13',connections:['cilos']}),e=>e.status===404);
+ await assert.rejects(ads.report({...delegated,connections:[]},{from:'2026-11-13',to:'2026-11-13'}),e=>e.status===403);
+ await assert.rejects(ads.accounts(delegated,'default'),e=>e.status===403);
+ let analyzed;
+ const chat=new MetaAnalysis(ads,{providerFactory:()=>({complete:async({messages})=>{
+  analyzed=JSON.parse(messages.at(-1).content).report;
+  return {text:'Análise restrita à conexão autorizada.'};
+ }})});
+ const prompt={from:'2026-11-13',to:'2026-11-13',connections:[],messages:[{role:'user',text:'Compare as campanhas.'}]};
+ await assert.rejects(chat.chat(delegated,prompt),e=>e.status===403);
+ await chat.chat({...delegated,permissions:[...delegated.permissions,'meta.dashboard.analysis']},prompt);
+ assert.deepEqual(analyzed.currentSettings.campaigns.map(c=>c.id),['999991']);
+ assert.deepEqual(analyzed.comparisonWindow.campaigns.map(c=>c.connectionId),['default']);
+ const [campaign]=command.qualification.campaigns;
+ assert.equal(campaign.won,1);
+ assert.equal(campaign.soldValue,250);
+ assert.equal(campaign.costPerSale,20);
+ assert.equal(campaign.averageSale,250);
+ assert.equal(campaign.salesReturn,12.5);
+ await store.pool.query("UPDATE crm_deals SET reporting_snapshot=$1",[{...sale,finishedAt:'2026-11-14T20:00:00.000Z'}]);
+ ads.cache.clear();
+ assert.equal((await ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['default']})).totals.won,0);
+ const cilos=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['cilos']});assert.equal(cilos.totals.spend,10);assert.equal(cilos.totals.estimatedCostPerContact,null);assert.equal(cilos.rows[0].cplEligible,false);
  await assert.rejects(ads.report({...admin,role:'operator'},{from:'2026-11-13',to:'2026-11-13'}),e=>e.status===403);await assert.rejects(ads.report(admin,{from:'2026-11-13',to:'2026-11-13',connections:['other']}),e=>e.status===404);assert.equal((await ads.settings(other)).enabled,false);await assert.rejects(ads.save(other,{connectionId:'default',accountId:'act_123456',token}),e=>e.status===404);await assert.rejects(ads.save(other,{connectionId:'other',accountId:'act_123456',token}),e=>e.status===409);
  mode='deny';ads.cache.clear();const failed=await ads.report(admin,{from:'2026-11-13',to:'2026-11-13'});assert.equal(failed.status,'unavailable');assert.equal(failed.totals,null);assert.ok(!JSON.stringify(failed).includes(token));await ads.save(admin,{enabled:false});assert.equal((await ads.record('default')).access_token_cipher,null);
  }finally{await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}

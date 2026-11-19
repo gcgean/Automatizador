@@ -1,5 +1,6 @@
 import {encryptSecret,decryptSecret} from './secrets.js';
 import {costPeriod} from './meta-costs.js';
+import {canUseMetaDashboard} from '../shared/access.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const numeric=value=>{if(value===null||value===undefined||value==='')return null;const n=Number(value);return Number.isFinite(n)&&n>=0?n:null;};
 const round=n=>Math.round((n+Number.EPSILON)*1e8)/1e8;
@@ -28,21 +29,30 @@ export function scopeAd(ad,scopes,connections,local=[]){
  return {...ad,purpose,connectionId:connection?.id||null,connectionName:connection?.name||null,destination:scope?.destination||'unknown',destinationPhone:scope?.phone||null,phoneConfirmed:!!scope?.phoneConfirmed,destinationEligible,cplEligible:!reason,cplReason:reason,contacts:sum('contacts'),qualified:sum('qualified'),won:sum('won'),phoneVerifiedFrom:since,eligibleSpend,eligibleContacts,costPerConversation:purpose==='commercial'&&['whatsapp','page_whatsapp'].includes(scope?.destination)&&ad.conversations?round(ad.spend/ad.conversations):null,estimatedCostPerContact:!reason&&eligibleContacts?round(eligibleSpend/eligibleContacts):null};
 }
 // Compare campaigns using one common attribution window, rather than mixing old spend with today's contacts.
-export function qualificationReport(cards,local,{from,to,complete=true,minQualified=5}={}){
+export function qualificationReport(cards,local,{from,to,complete=true,minQualified=5,currency='BRL'}={}){
  const scoped=cards.filter(a=>a.purpose==='commercial'&&a.connectionId),eligible=scoped.filter(a=>a.destinationEligible);
  const since=eligible.reduce((date,a)=>a.phoneVerifiedFrom&&a.phoneVerifiedFrom>date?a.phoneVerifiedFrom:date,from),inWindow=day=>typeof day==='string'&&day>=since&&day<=to;
  const campaigns=new Map(),daily=new Map();
  for(const ad of scoped){
   const key=ad.connectionId+':'+ad.campaignId;let campaign=campaigns.get(key);
-  if(!campaign){campaign={id:ad.campaignId,connectionId:ad.connectionId,connectionName:ad.connectionName,name:ad.campaign,spend:0,contacts:0,qualified:0,won:0,ads:0,destinationEligible:ad.destinationEligible,reason:ad.destinationEligible?null:ad.cplReason};campaigns.set(key,campaign);}
+  if(!campaign){campaign={id:ad.campaignId,connectionId:ad.connectionId,connectionName:ad.connectionName,name:ad.campaign,spend:0,contacts:0,qualified:0,won:0,crmLinked:0,crmVerified:0,undatedWon:0,unpricedWon:0,soldValue:0,ads:0,destinationEligible:ad.destinationEligible,reason:ad.destinationEligible?null:ad.cplReason};campaigns.set(key,campaign);}
   campaign.ads++;
   if(!ad.destinationEligible)continue;
   for(const d of ad.dailySpend||[])if(inWindow(d.day)){campaign.spend+=d.spend;const point=daily.get(d.day)||{day:d.day,spend:0,contacts:0,qualified:0};point.spend+=d.spend;daily.set(d.day,point);}
-  for(const l of local)if(l.ad_id===ad.id&&l.connection_id===ad.connectionId&&inWindow(l.day)){campaign.contacts+=l.contacts;campaign.qualified+=l.qualified;campaign.won+=l.won;const point=daily.get(l.day)||{day:l.day,spend:0,contacts:0,qualified:0};point.contacts+=l.contacts;point.qualified+=l.qualified;daily.set(l.day,point);}
+  for(const l of local)if(l.ad_id===ad.id&&l.connection_id===ad.connectionId&&inWindow(l.day)){campaign.contacts+=l.contacts;campaign.qualified+=l.qualified;campaign.won+=l.won;
+   campaign.crmLinked+=l.crm_linked||0;
+   campaign.crmVerified+=l.crm_verified||0;
+   campaign.undatedWon+=l.undated_won||0;
+   campaign.unpricedWon+=l.unpriced_won||0;
+   campaign.soldValue+=l.sold_value||0;const point=daily.get(l.day)||{day:l.day,spend:0,contacts:0,qualified:0};point.contacts+=l.contacts;point.qualified+=l.qualified;daily.set(l.day,point);}
  }
  const rows=[...campaigns.values()].map(c=>{const spend=round(c.spend),rate=c.contacts?round(100*c.qualified/c.contacts):null,cost=spend>0&&c.qualified>0?round(spend/c.qualified):null;
   const status=!c.destinationEligible?'ineligible':since>to?'outside_window':!spend?'no_spend':!c.contacts?'no_contacts':!c.qualified?'no_qualified':c.qualified<minQualified?'small_sample':'comparable';
-  return {...c,spend,qualificationRate:rate,costPerQualified:cost,estimatedCpl:spend>0&&c.contacts?round(spend/c.contacts):null,status};
+  const dealsChecked=complete&&c.crmVerified>0&&c.crmLinked===c.crmVerified&&!c.undatedWon;
+  const soldValue=dealsChecked&&!c.unpricedWon&&currency==='BRL'?round(c.soldValue):null;
+  return {...c,spend,soldValue,costPerSale:dealsChecked&&c.won&&spend>0?round(spend/c.won):null,
+   averageSale:soldValue!==null&&c.won?round(soldValue/c.won):null,
+   salesReturn:soldValue!==null&&c.won&&spend>0?round(soldValue/spend):null,qualificationRate:rate,costPerQualified:cost,estimatedCpl:spend>0&&c.contacts?round(spend/c.contacts):null,status};
  }).sort((a,b)=>(a.costPerQualified??Infinity)-(b.costPerQualified??Infinity)||(b.qualificationRate??-1)-(a.qualificationRate??-1)||b.qualified-a.qualified||a.id.localeCompare(b.id));
  const sum=key=>round(rows.reduce((n,c)=>n+c[key],0)),totals={spend:sum('spend'),contacts:sum('contacts'),qualified:sum('qualified'),won:sum('won')};totals.costPerQualified=totals.spend>0&&totals.qualified?round(totals.spend/totals.qualified):null;totals.estimatedCpl=totals.spend>0&&totals.contacts?round(totals.spend/totals.contacts):null;totals.qualificationRate=totals.contacts?round(100*totals.qualified/totals.contacts):null;
  const best=complete?rows.find(c=>c.status==='comparable')||null:null;
@@ -69,7 +79,7 @@ export class MetaAds{
   try{await this.store.transaction(async tx=>{await tx.pool.query(`INSERT INTO meta_ads_accounts(company_id,connection_id,account_id,account_name,currency,timezone_name,access_token_cipher,enabled) VALUES($1,$2,$3,$4,$5,$6,$7,true) ON CONFLICT(company_id) DO UPDATE SET connection_id=excluded.connection_id,account_id=excluded.account_id,account_name=excluded.account_name,currency=excluded.currency,timezone_name=excluded.timezone_name,access_token_cipher=excluded.access_token_cipher,campaign_scopes=CASE WHEN meta_ads_accounts.account_id=excluded.account_id THEN meta_ads_accounts.campaign_scopes ELSE '[]'::jsonb END,enabled=true,updated_at=now()`,[user.company_id,body.connectionId,account.id,account.name,account.currency,account.timezone_name,token?encryptSecret(token,this.config.connectionsKey):null]);await tx.audit('meta_ads_connected',user.id,{companyId:user.company_id,accountId:account.id});});}catch(e){if(e.code==='23505')throw fail('Esta conta de anúncios já está vinculada a outra empresa.',409);throw e;}
   this.cache.clear();return this.settings(user);
  }
- async accountConfig(user){this.admin(user);const row=await this.record(user.company_id);if(!row?.enabled)throw fail('Conecte a conta de anúncios primeiro.');const cfg=await this.connection(row.connection_id,user.company_id);if(row.access_token_cipher)cfg.accessToken=decryptSecret(row.access_token_cipher,this.config.connectionsKey);return {row,cfg};}
+ async accountConfig(user,{analysis=false}={}){if(!analysis)this.admin(user);else if(!canUseMetaDashboard(user,'analysis'))throw fail('Seu acesso não permite analisar campanhas.',403);const row=await this.record(user.company_id);if(!row?.enabled)throw fail('Conecte a conta de anúncios primeiro.');const cfg=await this.connection(row.connection_id,user.company_id);if(row.access_token_cipher)cfg.accessToken=decryptSecret(row.access_token_cipher,this.config.connectionsKey);return {row,cfg};}
  async campaigns(user){const {row,cfg}=await this.accountConfig(user);const campaigns=[],seen=new Set();let cursor=null;for(let i=0;i<20;i++){const r=await this.graph(cfg,row.account_id+'/campaigns',{fields:'id,name,objective,status',limit:100,...(cursor?{after:cursor}:{})});if(!Array.isArray(r.data))throw fail('A Meta não retornou as campanhas.',502);campaigns.push(...r.data.map(c=>({id:c.id,name:c.name,objective:c.objective,status:c.status})));if(!r.paging?.next)return {campaigns,scopes:row.campaign_scopes||[]};const after=r.paging.cursors?.after;if(!after||seen.has(after))break;seen.add(after);cursor=after;}throw fail('Lista de campanhas incompleta; confira o acesso e tente novamente.',502);}
  async saveScopes(user,body){
   this.admin(user);const scopes=body.scopes;if(!Array.isArray(scopes)||scopes.length>2000||new Set(scopes.map(s=>s.campaignId)).size!==scopes.length)throw fail('Informe uma classificação por campanha.');
@@ -78,25 +88,62 @@ export class MetaAds{
   await this.store.transaction(async tx=>{await tx.pool.query('UPDATE meta_ads_accounts SET campaign_scopes=$2,updated_at=now() WHERE company_id=$1',[user.company_id,JSON.stringify(clean)]);await tx.audit('meta_ads_scopes_updated',user.id,{companyId:user.company_id,campaigns:clean.length});});this.cache.clear();return this.settings(user);
  }
  async report(user,{from,to,connections=[]}){
-  this.admin(user);const period=costPeriod(from,to,this.now()),all=(await this.registry.list()).filter(c=>c.companyId===user.company_id),ids=connections.length?[...new Set(connections)]:all.map(c=>c.id);if(ids.some(id=>!all.some(c=>c.id===id)))throw fail('Conexão não encontrada nesta empresa.',404);
+  if(!canUseMetaDashboard(user))throw fail('Seu acesso não permite consultar o Dashboard Meta.',403);
+  costPeriod(from,to,this.now());
+  const restricted=user.role!=='admin',allowed=new Set(user.connections||[]);
+  const all=(await this.registry.list()).filter(c=>c.companyId===user.company_id&&(!restricted||allowed.has(c.id)));
+  const ids=connections.length?[...new Set(connections)]:all.map(c=>c.id);
+  if(ids.some(id=>!all.some(c=>c.id===id)))throw fail('Conexão não encontrada ou sem acesso.',404);
+  if(restricted&&!ids.length)throw fail('Seu usuário ainda não tem conexões autorizadas para o Dashboard Meta.',403);
   const row=await this.record(user.company_id),base={from,to,configured:!!row?.enabled,rows:[],daily:[],totals:null,complete:false,localTimezone:'America/Sao_Paulo',fetchedAt:new Date(this.now()).toISOString()};
   if(!row?.enabled)return {...base,status:'not_configured',notice:'Conecte uma conta de anúncios com ads_read para consultar investimento e custo por lead. Custos de WhatsApp continuam disponíveis separadamente.'};
-  const key=JSON.stringify([user.company_id,row.updated_at,from,to,ids.sort()]),cached=this.cache.get(key);if(cached&&this.now()-cached.at<300000)return cached.value;if(this.pending.has(key))return this.pending.get(key);
+  const key=JSON.stringify([user.company_id,row.updated_at,restricted,from,to,ids.sort()]),cached=this.cache.get(key);if(cached&&this.now()-cached.at<300000)return cached.value;if(this.pending.has(key))return this.pending.get(key);
   const work=(async()=>{try{const cfg=await this.connection(row.connection_id,user.company_id);if(row.access_token_cipher)cfg.accessToken=decryptSecret(row.access_token_cipher,this.config.connectionsKey);
    const account=await this.graph(cfg,row.account_id,{fields:'id,name,currency,timezone_name'});if(account.id!==row.account_id||!/^[A-Z]{3}$/.test(account.currency||'')||!account.timezone_name)throw fail('A Meta não confirmou a conta de anúncios.',502);
    let cursor=null,complete=true;const raw=[];const seen=new Set();for(let page=0;page<20;page++){const response=await this.graph(cfg,row.account_id+'/insights',{fields:'ad_id,ad_name,campaign_id,campaign_name,account_currency,spend,impressions,clicks,actions,date_start,date_stop',level:'ad',time_increment:1,time_range:{since:from,until:to},limit:500,...(cursor?{after:cursor}:{})});if(!Array.isArray(response.data))throw fail('Resposta incompleta de anúncios.',502);raw.push(...response.data);if(!response.paging?.next)break;const after=response.paging.cursors?.after;if(!after||seen.has(after)||page===19){complete=false;break;}seen.add(after);cursor=after;}
    // Local attribution is independent of Meta conversion attribution. Never infer an individual charge.
-   const local=(await this.store.pool.query(`SELECT a.source_id AS ad_id,a.connection_id,to_char(a.occurred_at AT TIME ZONE $5,'YYYY-MM-DD') AS day,count(*)::int AS contacts,count(*) FILTER(WHERE l.data->>'salesQualification'='qualified')::int AS qualified,count(*) FILTER(WHERE l.data->>'resultado'='ganho')::int AS won FROM meta_ad_attribution a JOIN whatsapp_connections c ON c.id=a.connection_id LEFT JOIN leads l ON l.connection_id=a.connection_id AND l.phone=a.phone WHERE c.company_id=$1 AND a.connection_id=ANY($2::text[]) AND (a.occurred_at AT TIME ZONE $5)::date BETWEEN $3::date AND $4::date GROUP BY a.source_id,a.connection_id,to_char(a.occurred_at AT TIME ZONE $5,'YYYY-MM-DD')`,[user.company_id,ids,from,to,account.timezone_name])).rows;
+   const local=(await this.store.pool.query(`
+    WITH linked AS (
+      SELECT d.connection_id,d.phone,d.remote_id,d.reporting_snapshot,count(*) OVER (PARTITION BY d.remote_id) AS copies
+      FROM crm_deals d JOIN whatsapp_connections c ON c.id=d.connection_id
+      WHERE c.company_id=$1 AND d.state='linked' AND d.remote_id IS NOT NULL
+    ), attributed AS (
+      SELECT a.*,l.data,d.remote_id,d.reporting_snapshot AS sale,
+        d.copies=1 AND (d.reporting_snapshot->>'verifiedAt')::timestamptz>=now()-interval '2 hours' AS verified
+      FROM meta_ad_attribution a
+      JOIN whatsapp_connections c ON c.id=a.connection_id
+      LEFT JOIN leads l ON l.connection_id=a.connection_id AND l.phone=a.phone
+      LEFT JOIN linked d ON d.connection_id=a.connection_id AND d.phone=a.phone
+      WHERE c.company_id=$1 AND a.connection_id=ANY($2::text[])
+        AND (a.occurred_at AT TIME ZONE $5)::date BETWEEN $3::date AND $4::date
+    ), outcomes AS (
+      SELECT *,verified AND sale->>'status'='won'
+        AND (sale->>'finishedAt')::timestamptz>=occurred_at
+        AND ((sale->>'finishedAt')::timestamptz AT TIME ZONE $5)::date<=$4::date AS won
+      FROM attributed
+    )
+    SELECT a.source_id AS ad_id,a.connection_id,to_char(a.occurred_at AT TIME ZONE $5,'YYYY-MM-DD') AS day,
+      count(*)::int AS contacts,
+      count(*) FILTER(WHERE a.data->>'salesQualification'='qualified')::int AS qualified,
+      count(*) FILTER(WHERE a.won)::int AS won,
+      count(*) FILTER(WHERE a.verified)::int AS crm_verified,
+      count(*) FILTER(WHERE a.remote_id IS NOT NULL)::int AS crm_linked,
+      count(*) FILTER(WHERE a.verified AND a.sale->>'status'='won' AND a.sale->>'finishedAt' IS NULL)::int AS undated_won,
+      count(*) FILTER(WHERE a.won AND a.sale->>'value' IS NULL)::int AS unpriced_won,
+      coalesce(sum((a.sale->>'value')::numeric) FILTER(WHERE a.won),0)::float8 AS sold_value
+    FROM outcomes a
+    GROUP BY a.source_id,a.connection_id,to_char(a.occurred_at AT TIME ZONE $5,'YYYY-MM-DD')
+   `,[user.company_id,ids,from,to,account.timezone_name])).rows;
    const ads=new Map(),days=new Map(),insightKeys=new Set();for(const item of raw){const insightKey=item.ad_id+':'+item.date_start;if(insightKeys.has(insightKey))throw fail('A Meta retornou indicadores duplicados; reduza o período e tente novamente.',502);insightKeys.add(insightKey);if(!/^\d+$/.test(item.ad_id||'')||item.account_currency!==account.currency||item.date_start<from||item.date_start>to)throw fail('A Meta retornou anúncio, moeda ou data incompatível.',502);const metrics=adMetrics(item),ad=ads.get(item.ad_id)||{id:item.ad_id,name:item.ad_name,campaign:item.campaign_name,campaignId:item.campaign_id,dailySpend:[],spend:0,impressions:0,clicks:0,conversations:0,metaLeads:0},day=days.get(item.date_start)||{day:item.date_start,spend:0,conversations:0,metaLeads:0};ad.dailySpend.push({day:item.date_start,spend:metrics.spend});for(const k of Object.keys(metrics))ad[k]+=metrics[k];for(const k of ['spend','conversations','metaLeads'])day[k]+=metrics[k];ads.set(item.ad_id,ad);days.set(day.day,day);}
    const scopes=row.campaign_scopes||[],classified=[...ads.values()].map(ad=>scopeAd({...ad,spend:round(ad.spend)},scopes,all,local));
-   const cards=classified.filter(ad=>!ad.connectionId||ids.includes(ad.connectionId)).sort((a,b)=>b.spend-a.spend),commercial=cards.filter(ad=>ad.purpose==='commercial'&&ids.includes(ad.connectionId)),eligible=commercial.filter(ad=>ad.cplEligible),wa=commercial.filter(ad=>['whatsapp','page_whatsapp'].includes(ad.destination));
+   const cards=classified.filter(ad=>restricted?ad.purpose==='commercial'&&ids.includes(ad.connectionId):!ad.connectionId||ids.includes(ad.connectionId)).sort((a,b)=>b.spend-a.spend),commercial=cards.filter(ad=>ad.purpose==='commercial'&&ids.includes(ad.connectionId)),eligible=commercial.filter(ad=>ad.cplEligible),wa=commercial.filter(ad=>['whatsapp','page_whatsapp'].includes(ad.destination));
    const sum=(rows,key)=>round(rows.reduce((s,a)=>s+a[key],0)),totals={spend:sum(commercial,'spend'),conversations:sum(wa,'conversations'),metaLeads:sum(commercial,'metaLeads'),contacts:sum(commercial,'contacts'),qualified:sum(commercial,'qualified'),won:sum(commercial,'won'),impressions:sum(commercial,'impressions'),clicks:sum(commercial,'clicks'),whatsappSpend:sum(wa,'spend'),eligibleSpend:sum(eligible,'eligibleSpend'),eligibleContacts:sum(eligible,'eligibleContacts')};
    totals.costPerConversation=totals.conversations?round(totals.whatsappSpend/totals.conversations):null;totals.estimatedCostPerContact=totals.eligibleContacts?round(totals.eligibleSpend/totals.eligibleContacts):null;
-   const accountTotals={spend:sum(classified,'spend'),recruitmentSpend:sum(classified.filter(a=>a.purpose==='recruitment'),'spend'),unclassifiedSpend:sum(classified.filter(a=>a.purpose==='unknown'),'spend'),outsideScopeSpend:round(sum(classified,'spend')-totals.spend)};
+   const accountTotals=restricted?null:{spend:sum(classified,'spend'),recruitmentSpend:sum(classified.filter(a=>a.purpose==='recruitment'),'spend'),unclassifiedSpend:sum(classified.filter(a=>a.purpose==='unknown'),'spend'),outsideScopeSpend:round(sum(classified,'spend')-totals.spend)};
    const scopedDays=new Map();for(const item of raw)if(commercial.some(a=>a.id===item.ad_id)){const m=adMetrics(item),d=scopedDays.get(item.date_start)||{day:item.date_start,spend:0,conversations:0,metaLeads:0};d.spend+=m.spend;if(wa.some(a=>a.id===item.ad_id))d.conversations+=m.conversations;d.metaLeads+=m.metaLeads;scopedDays.set(d.day,d);}
    const scopeReady=scopes.some(s=>s.purpose==='commercial'&&ids.includes(s.connectionId));
-   const qualification=qualificationReport(cards,local,{from,to,complete});
-   const value={...base,status:complete?'ok':'partial',qualification,complete,currency:account.currency,accountName:account.name,accountId:account.id,timezone:account.timezone_name,scopeReady,accountTotals,rows:cards,daily:[...scopedDays.values()].sort((a,b)=>a.day.localeCompare(b.day)),totals,unmatchedContacts:local.reduce((n,l)=>n+l.contacts,0)-totals.contacts,notice:'Investimento comercial somente das campanhas classificadas para as conexões selecionadas; recrutamento, outras finalidades e campanhas sem classificação ficam fora. Dias no fuso da conta de anúncios. Custo/conversa Meta usa apenas campanhas de WhatsApp. CPL local considera somente campanhas cujo número de destino foi conferido e coincide com a conexão; não é cobrança individual. O gasto e os contatos do CPL também respeitam a data desde a qual o número foi confirmado como destino; não se presume o destino histórico. Destinos de Página não são presumidos. O total da conta é mostrado separadamente e nunca dividido pelos leads comerciais. Qualificação e ganho refletem a situação atual; valores sujeitos a revisão, sem impostos/câmbio/taxas.'};this.cache.set(key,{at:this.now(),value});if(this.cache.size>30)this.cache.delete(this.cache.keys().next().value);return value;
+   const qualification=qualificationReport(cards,local,{from,to,currency:account.currency,complete});
+   const value={...base,status:complete?'ok':'partial',qualification,complete,currency:account.currency,accountName:account.name,accountId:account.id,timezone:account.timezone_name,scopeReady,accountTotals,rows:cards,daily:[...scopedDays.values()].sort((a,b)=>a.day.localeCompare(b.day)),totals,unmatchedContacts:local.reduce((n,l)=>n+l.contacts,0)-totals.contacts,notice:'Investimento comercial somente das campanhas classificadas para as conexões selecionadas; recrutamento, outras finalidades e campanhas sem classificação ficam fora. Dias no fuso da conta de anúncios. Custo/conversa Meta usa apenas campanhas de WhatsApp. CPL local considera somente campanhas cujo número de destino foi conferido e coincide com a conexão; não é cobrança individual. O gasto e os contatos do CPL também respeitam a data desde a qual o número foi confirmado como destino; não se presume o destino histórico. Destinos de Página não são presumidos. O total da conta é mostrado separadamente e nunca dividido pelos leads comerciais. A qualificação reflete a situação atual e os ganhos são consultados no CRM; valores sujeitos a revisão, sem impostos/câmbio/taxas.'};this.cache.set(key,{at:this.now(),value});if(this.cache.size>30)this.cache.delete(this.cache.keys().next().value);return value;
   }catch(e){return {...base,status:'unavailable',error:e.status?e.message:'Não foi possível obter os indicadores. Confira conexão, permissões e disponibilidade da Meta.'};}})();this.pending.set(key,work);try{return await work;}finally{this.pending.delete(key);}
  }
 }

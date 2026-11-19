@@ -40,11 +40,11 @@ class ClaudeProvider {
     return this.client;
   }
 
-  async complete({system, tools, messages}) {
+  async complete({system, tools, messages, maxTokens=16000}) {
     const client = await this.getClient();
     const response = await client.beta.messages.create({
       model: this.settings.model,
-      max_tokens: 16000,
+      max_tokens: maxTokens,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       output_config: {effort: this.settings.effort},
@@ -79,20 +79,22 @@ class OpenAICompatibleProvider {
     this.fetch = fetchImpl;
   }
 
-  async complete({system, tools, messages}) {
+  async complete({system, tools, messages, maxTokens, directAnswer=false, modelOverride, timeoutMs=120000}) {
     const {baseURL, key, model} = this.settings;
     if (!model) throw new Error(`Configure o modelo do provedor ${this.name}.`);
     const response = await this.fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', ...(key ? {Authorization: `Bearer ${key}`} : {})},
       body: JSON.stringify({
-        model,
+        model: modelOverride || model,
         messages: [{role: 'system', content: system}, ...messages],
         tools: tools.map(t => ({type: 'function', function: {name: t.name, description: t.description, parameters: t.input_schema}})),
         tool_choice: 'auto',
         temperature: 0.4,
+        ...(maxTokens?{max_tokens:maxTokens}:{}),
+        ...(directAnswer&&this.name==='deepseek'?{thinking:{type:'disabled'}}:{}),
       }),
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(`${this.name}: ${data?.error?.message ?? `HTTP ${response.status}`}`);

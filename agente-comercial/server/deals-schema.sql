@@ -3,3 +3,6 @@ CREATE TABLE IF NOT EXISTS crm_deals(id uuid PRIMARY KEY,connection_id text NOT 
 CREATE INDEX IF NOT EXISTS crm_deals_pending_idx ON crm_deals(next_at) WHERE state IN ('queued','uncertain');
 CREATE TABLE IF NOT EXISTS crm_deal_actions(id uuid PRIMARY KEY,deal_id uuid NOT NULL REFERENCES crm_deals(id),request_id text NOT NULL,desired jsonb NOT NULL,status text NOT NULL,error text,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(deal_id,request_id));
 CREATE UNIQUE INDEX IF NOT EXISTS crm_deal_active_action_idx ON crm_deal_actions(deal_id) WHERE status IN ('sending','uncertain');
+ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS reporting_checked_at timestamptz;
+ALTER TABLE crm_deals ADD COLUMN IF NOT EXISTS reporting_snapshot jsonb;
+CREATE INDEX IF NOT EXISTS crm_deals_reporting_idx ON crm_deals(reporting_checked_at NULLS FIRST) WHERE state='linked' AND remote_id IS NOT NULL;

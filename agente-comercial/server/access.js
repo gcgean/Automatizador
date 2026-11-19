@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {ALL_PERMISSIONS,LEGACY_PERMISSIONS} from '../shared/access.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
-export function permissionList(value){if(!Array.isArray(value)||value.some(p=>!ALL_PERMISSIONS.includes(p)))throw fail('Permissões inválidas.');return [...new Set(value)];}
+export function permissionList(value){if(!Array.isArray(value)||value.some(p=>p!=='learning.manage'&&!ALL_PERMISSIONS.includes(p)))throw fail('Permissões inválidas.');return [...new Set(value.filter(p=>p!=='learning.manage'))];}
 export async function resolveAccess(db,user){if(!user)return null;const {rows}=await db.query("SELECT g.id,g.name,g.permissions,COALESCE((SELECT json_agg(connection_id) FROM access_group_connections WHERE group_id=g.id),'[]'::json) AS connections FROM access_groups g JOIN user_access_groups ug ON ug.group_id=g.id WHERE ug.user_id=$1 AND g.active",[user.id]);const permissions=user.role==='admin'?ALL_PERMISSIONS:user.access_mode==='custom'?[...new Set([...(user.extra_permissions||[]),...rows.flatMap(g=>g.permissions)])]:LEGACY_PERMISSIONS[user.role]||[];const departmentIds=(await db.query('SELECT department_id FROM department_users WHERE user_id=$1',[user.id])).rows.map(r=>r.department_id);return {...user,departmentIds,permissions,groups:rows.map(g=>({id:g.id,name:g.name})),connections:[...new Set([...(user.connections||[]),...rows.flatMap(g=>g.connections)])]};}
 export class AccessGroups{
  constructor(store){this.store=store;}

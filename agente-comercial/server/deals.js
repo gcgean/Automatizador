@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {salesSnapshot} from './crm-sales.js';
 const BASE='https://app.crm.cilos.com.br/api/integracao/v1';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const numeric=value=>Number.isSafeInteger(Number(value))&&Number(value)>0;
@@ -23,7 +24,7 @@ export class DealsService{
    await tx.pool.query('SELECT 1 FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[row.connection_id,row.phone]);
    const current=(await tx.pool.query('SELECT remote_id FROM crm_deals WHERE id=$1 AND connection_id=$2 FOR UPDATE',[row.id,row.connection_id])).rows[0];
    if(!current)throw fail('Negócio local não encontrado.',404);
-   await tx.pool.query("UPDATE crm_deals SET state='linked',remote_id=$2,remote_status=$3,value=$4,response=$5,error=NULL,updated_at=now() WHERE id=$1",[row.id,String(data.id),data.status,data.value??null,data]);
+   await tx.pool.query("UPDATE crm_deals SET state='linked',remote_id=$2,remote_status=$3,value=$4,response=$5,error=NULL,updated_at=now(),reporting_checked_at=now(),reporting_snapshot=$6 WHERE id=$1",[row.id,String(data.id),data.status,data.value??null,data,salesSnapshot(data)]);
    await tx.updateLead(row.phone,{crmDealId:String(data.id),crmDealStatus:data.status,crmDealState:'linked',...(['won','lost'].includes(data.status)?{resultado:data.status==='won'?'ganho':'perdido'}:{}),...(data.value!==undefined?{crmDealValue:Number(data.value)}:{})});
    await tx.recordEvent({id:'crm-deal-'+row.id,phone:row.phone,direction:'out',actor:'system',kind:'crm',crmEntity:'business',text:'Negócio criado/vinculado no CRM · #'+data.id+' · Cliente #'+row.client_id,state:'internal'});
    if(this.meta&&!this.crm.config.crmTest&&!current.remote_id&&data.status==='in_progress')await this.meta.businessCreated(tx,row.connection_id,row.phone,String(data.id));

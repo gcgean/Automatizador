@@ -1,13 +1,17 @@
 export const PERMISSION_SECTIONS=[
  {name:'CRM da empresa',items:[['pipeline.view','Ver o funil e as oportunidades'],['pipeline.manage','Criar e editar oportunidades e anotações']]},
  {name:'Atendimento',items:[['conversations.view','Ver conversas e contatos'],['messages.send','Enviar mensagens de texto'],['calls.use','Fazer e receber ligações WhatsApp'],['media.send','Enviar áudios e anexos'],['signature.choose','Escolher enviar com ou sem assinatura'],['conversations.automation','Pausar e retomar a IA'],['conversations.transfer','Transferir para atendente humano'],['leads.manage','Classificar leads e etiquetas'],['conversations.close','Finalizar e reabrir atendimentos informando o motivo'],['closure-reasons.create','Cadastrar novo motivo de finalização (validado pela IA)'],['contacts.block','Bloquear contatos'],['photos.manage','Cadastrar foto do contato'],['queue.resolve','Resolver pendências de envio'],['deals.manage','Atualizar e fechar negócios no CRM']]},
- {name:'Análise',items:[['reports.view','Ver relatórios'],['reports.export','Exportar mensagens'],['learning.manage','Analisar e aprovar melhorias da IA']]},
- {name:'Configurações',items:[['ai.manage','Escolher provedor de IA'],['agenda.manage','Configurar agenda e conferir reservas'],['crm.manage','Configurar CRM e conferir sincronização'],['cadence.manage','Configurar cadência'],['simulation.use','Testar HELENA e integrações']]}
+ {name:'Análise',items:[['reports.view','Ver relatórios de atendimentos'],['reports.export','Exportar mensagens']]},
+ {name:'Dashboard Meta',items:[['meta.dashboard.view','Ver o Dashboard Meta nas conexões autorizadas'],['meta.dashboard.export','Exportar PDF do Dashboard Meta'],['meta.dashboard.analysis','Usar o chat de análise de campanhas com IA']]},
+ {name:'Configurações',items:[['quick-replies.manage','Criar, editar e remover mensagens rápidas'],['ai.manage','Escolher provedor de IA'],['agenda.manage','Configurar agenda e conferir reservas'],['crm.manage','Configurar CRM e conferir sincronização'],['cadence.manage','Configurar cadência'],['simulation.use','Testar HELENA e integrações']]}
 ];
 export const ALL_PERMISSIONS=PERMISSION_SECTIONS.flatMap(s=>s.items.map(i=>i[0]));
 export const LEGACY_PERMISSIONS={viewer:['pipeline.view','conversations.view','reports.view','reports.export'],operator:['pipeline.view','pipeline.manage','calls.use','conversations.view','messages.send','media.send','signature.choose','conversations.automation','conversations.transfer','leads.manage','conversations.close','closure-reasons.create','contacts.block','photos.manage','queue.resolve','deals.manage','reports.view','reports.export']};
-export const can=(user,key)=>user?.role==='admin'||(user?.permissions||LEGACY_PERMISSIONS[user?.role]||[]).includes(key);
+export const can=(user,key)=>key==='quick-replies.read'?(can(user,'messages.send')||can(user,'quick-replies.manage')):user?.role==='admin'||(user?.permissions||LEGACY_PERMISSIONS[user?.role]||[]).includes(key);
+export const canUseMetaDashboard=(user,action='view')=>can(user,'meta.dashboard.view')&&can(user,'meta.dashboard.'+action);
 export function requiredPermission(path,method){
+ if(method==='GET'&&(path==='/meta-ads'||path==='/meta-costs'))return 'meta.dashboard.view';
+ if(method==='POST'&&path==='/meta-ads/analysis')return 'meta.dashboard.analysis';
  if(path==='/contacts')return 'conversations.view';
  if(path.startsWith('/contacts/'))return 'leads.manage';
  if(path==='/closure-reasons'&&method==='GET')return 'conversations.view';
@@ -18,7 +22,7 @@ export function requiredPermission(path,method){
  if(path==='/ticket-departments')return 'conversations.transfer';
  if(/^\/leads\/\d+\/tickets$/.test(path))return 'conversations.view';
  if(/^\/leads\/\d+\/youtube(?:\/|$)/.test(path))return method==='GET'?'conversations.view':'messages.send';
- if(/^\/quick-replies(?:\/|$)/.test(path))return method==='GET'?'messages.send':'admin';
+ if(/^\/quick-replies(?:\/|$)/.test(path))return method==='GET'?'quick-replies.read':'quick-replies.manage';
  if(/^\/leads\/\d+\/conversation-state$/.test(path))return 'conversations.close';
  if(/^\/pipeline(?:\/|$)/.test(path))return method==='GET'?'pipeline.view':'pipeline.manage';
  if(/^\/leads\/\d+\/reengage$/.test(path))return 'messages.send';

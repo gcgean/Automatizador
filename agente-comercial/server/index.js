@@ -3,6 +3,7 @@ import {telemetry,accumulate,routeLabel} from './telemetry.js';
 import {listAttendances,ticketHistory,listDepartments,saveDepartment,transferTicket} from './tickets.js';
 import {connectBusinessApp} from './coexistence.js';
 import {MetaAds} from './meta-ads.js';
+import {MetaAnalysis} from './meta-analysis.js';
 import {Pipeline} from './pipeline.js';
 import {Reengagement} from './reengagement.js';
 import {QuickReplies} from './quick-replies.js';
@@ -26,7 +27,7 @@ import {Store} from './store.js';
 import {PgStore} from './pg-store.js';
 import {PasswordAuth} from './auth.js';
 import {AccessGroups,resolveAccess} from './access.js';
-import {can,requiredPermission,PERMISSION_SECTIONS} from '../shared/access.js';
+import {can,canUseMetaDashboard,requiredPermission,PERMISSION_SECTIONS} from '../shared/access.js';
 import {UserAdministration} from './users.js';
 import {ConnectionRegistry} from './connections.js';
 import {LearningService} from './learning.js';
@@ -59,6 +60,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
   const contacts=rootStore.pool?new Contacts(rootStore):null;
   const metaCosts=registry?new MetaCosts(registry):null;
   const metaAds=registry&&rootStore.pool?new MetaAds(rootStore,registry,registry.config):null;
+  const metaAnalysis=metaAds?new MetaAnalysis(metaAds):null;
   const quickReplies=registry&&media?new QuickReplies(rootStore,media):null;
   const push=registry&&rootStore.pool?(registry.push||new BrowserPush(rootStore,registry.config,auth)):null;
   const routing=registry&&rootStore.pool?(registry.routing||new ConsultantRouting(rootStore)):null;const youtube=registry?.youtube||null;
@@ -201,22 +203,29 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       }
       if(/^\/meta-ads(?:\/|$)/.test(url.pathname)){
         if(!authorized())return send(res,401,'unauthorized');
-        if(!administrator)return send(res,403,'Custos de anúncios são exclusivos de administradores.');
         if(!metaAds||!currentUser)return send(res,503,'Configure as empresas e conexões.');
+        if(url.pathname==='/meta-ads/analysis'&&req.method==='POST'){
+          if(!canUseMetaDashboard(currentUser,'analysis'))return send(res,403,'Seu acesso não permite analisar campanhas.');
+          const body=JSON.parse((await readBody(req,3*1024*1024)).toString());
+          return send(res,200,await metaAnalysis.chat(currentUser,body));
+        }
+        if(url.pathname==='/meta-ads'&&req.method==='GET')return send(res,200,await metaAds.report(currentUser,{from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:(url.searchParams.get('connections')||'').split(',').filter(Boolean)}));
+        if(!administrator)return send(res,403,'Somente administradores configuram a conta de anúncios.');
         if(url.pathname==='/meta-ads/settings'&&req.method==='GET')return send(res,200,await metaAds.settings(currentUser));
         if(url.pathname==='/meta-ads/settings'&&req.method==='POST')return send(res,200,await metaAds.save(currentUser,JSON.parse((await readBody(req)).toString())));
         if(url.pathname==='/meta-ads/campaigns'&&req.method==='GET')return send(res,200,await metaAds.campaigns(currentUser));
         if(url.pathname==='/meta-ads/scopes'&&req.method==='POST')return send(res,200,await metaAds.saveScopes(currentUser,JSON.parse((await readBody(req)).toString())));
         if(url.pathname==='/meta-ads/accounts'&&req.method==='GET')return send(res,200,await metaAds.accounts(currentUser,url.searchParams.get('connectionId')));
-        if(url.pathname==='/meta-ads'&&req.method==='GET')return send(res,200,await metaAds.report(currentUser,{from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:(url.searchParams.get('connections')||'').split(',').filter(Boolean)}));
         return send(res,404,'not found');
       }
       if(url.pathname==='/meta-costs'&&req.method==='GET'){
         if(!authorized())return send(res,401,'unauthorized');
-        if(!administrator)return send(res,403,'Custos da Meta são exclusivos de administradores.');
+        if(!administrator&&!canUseMetaDashboard(currentUser))return send(res,403,'Seu acesso não permite consultar o Dashboard Meta.');
         if(!metaCosts)return send(res,503,'Configure as conexões para consultar os custos.');
         const ids=(url.searchParams.get('connections')||'').split(',').filter(Boolean);
-        return send(res,200,await metaCosts.report({from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:ids,companyId:companies?companyId:undefined}));
+        if(url.searchParams.get('summary')==='detail')return send(res,200,await metaCosts.detailed({from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:ids,companyId:companies?companyId:undefined,allowedConnections:administrator?undefined:currentUser.connections||[]}));
+        if(url.searchParams.get('summary')==='month')return send(res,200,await metaCosts.monthly({connections:ids,companyId:companies?companyId:undefined,allowedConnections:administrator?undefined:currentUser.connections||[]}));
+        return send(res,200,await metaCosts.report({from:url.searchParams.get('from'),to:url.searchParams.get('to'),connections:ids,companyId:companies?companyId:undefined,allowedConnections:administrator?undefined:currentUser.connections||[]}));
       }
       if(auth&&currentUser&&url.pathname.startsWith('/access-groups')){
         if(!administrator)return send(res,403,'Apenas administradores podem gerenciar acessos.');

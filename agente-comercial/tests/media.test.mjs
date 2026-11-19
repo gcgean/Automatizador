@@ -18,12 +18,15 @@ test('anexos: download privado, transcrição, descadastro por voz, envio e dedu
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'media-qa-')),store=new PgStore(url.toString(),dir);let server;
  try{
  await store.init();const bytes=Buffer.from('synthetic media for transport test'),sent=[];let transcript='Quero conhecer o sistema',asrFails=false,uploads=0,converterMime='audio/mp4';
+ const sampleImage=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nT8AAAAASUVORK5CYII=','base64');
  const config={dataDir:dir,transcriberUrl:'http://private-asr',aiProvider:'deepseek',sellerNumbers:[],graphVersion:'v23.0',accessToken:'synthetic',phoneNumberId:'123456'};
  const fake=async(url,options={})=>{
   if(url==='http://private-asr/transcribe')return asrFails?new Response('{}',{status:503}):Response.json({text:transcript});
   if(url==='http://private-asr/convert-audio-m4a')return new Response(bytes,{headers:{'Content-Type':converterMime}});
   if(url==='https://graph.facebook.com/v23.0/123456/media'){uploads++;assert.ok(options.body instanceof FormData);if(options.body.get('file').type==='audio/mp4'){assert.equal(options.body.get('type'),'audio/mp4');assert.ok(options.body.get('file').name.endsWith('.m4a'));}return Response.json({id:'888888'});}
   if(url.endsWith('/messages')){if(!JSON.parse(options.body).status)sent.push(JSON.parse(options.body));return Response.json({messages:[{id:'wamid-'+sent.length}]});}
+  if(url.endsWith('/555555')||url.endsWith('/555556'))return Response.json({url:'https://lookaside.fbsbx.com/image',mime_type:'image/png',file_size:sampleImage.length});
+  if(url==='https://lookaside.fbsbx.com/image')return new Response(sampleImage);
   if(url.startsWith('https://graph.facebook.com/'))return Response.json({url:'https://lookaside.fbsbx.com/media',mime_type:'audio/ogg',sha256:crypto.createHash('sha256').update(bytes).digest('base64'),file_size:bytes.length});
   if(url==='https://lookaside.fbsbx.com/media')return new Response(bytes);
   throw Error('Unexpected external request '+url);
@@ -55,5 +58,36 @@ await assert.rejects(media.outgoing('default',phone,{mime:'image/png',name:'big.
  transcript='não me mande mais mensagens';const before=sent.length;await agent.handle({id:'voice-optout',from:phone,text:'áudio',media:{kind:'audio',id:'777778'}});assert.equal((await scoped.getLead(phone)).optedOut,true);assert.equal(sent.length,before);assert.equal(calls,1);
  asrFails=true;await agent.handle({id:'voice-failure',from:'5511999992222',text:'áudio',media:{kind:'audio',id:'777779'}});assert.equal((await scoped.getLead('5511999992222')).status,'encaminhado');const failure=(await scoped.getEvents('5511999992222')).find(e=>e.id==='voice-failure');assert.equal(failure.attachment.state,'ready');assert.ok(failure.attachment.error);assert.equal(calls,1);
  const extracted=extractMessages({entry:[{changes:[{field:'messages',value:{metadata:{phone_number_id:'123456'},messages:[{id:'webhook-media',from:phone,type:'image',image:{id:'555555',mime_type:'image/png',caption:'Minha loja'}}]}}]}]},'123456');assert.equal(extracted[0].media.id,'555555');
+
+ const imagePhone='5511999994444',humanPhone='5511999995555';
+ let visionCalls=0,replyCalls=0;
+ const imageAgent=new SalesAgent({config,store:scoped,media,whatsapp,providerFactory:()=>({
+   name:'deepseek',
+   complete:async({messages,tools,modelOverride})=>{
+     const content=messages.at(-1).content;
+     if(modelOverride){
+       visionCalls++;
+       assert.equal(modelOverride,'deepseek-flash');
+       assert.equal(tools.length,0);
+       assert.equal(content[1].image_url.url,'data:image/png;base64,'+sampleImage.toString('base64'));
+       return {text:'A tela mostra o erro TESTE-42.',toolCalls:[]};
+     }
+     replyCalls++;
+     assert.match(content,/Minha loja/);
+     assert.match(content,/TESTE-42/);
+     return {text:'Vi o erro TESTE-42 no print. Em qual etapa apareceu?',append:[],toolCalls:[]};
+   }
+ })});
+ await imageAgent.handle({...extracted[0],from:imagePhone});
+ assert.equal(visionCalls,1);
+ assert.equal(replyCalls,1);
+ assert.match(sent.at(-1).text.body,/TESTE-42/);
+ assert.ok(!JSON.stringify(await scoped.getConversation(imagePhone)).includes('data:image'));
+ await scoped.updateLead(humanPhone,{status:'encaminhado',humanControlId:'qa-control'});
+ const outbound=sent.length;
+ await imageAgent.handle({...extracted[0],id:'human-image',from:humanPhone,media:{...extracted[0].media,id:'555556'}});
+ assert.equal(visionCalls,1);
+ assert.equal(replyCalls,1);
+ assert.equal(sent.length,outbound);
  }finally{if(server)await new Promise(resolve=>server.close(resolve));await store.close();await pool.query('DROP SCHEMA '+schema+' CASCADE');await pool.end();await fs.rm(dir,{recursive:true,force:true});}
 });

@@ -33,3 +33,9 @@ test('API protege conexão, atendimento, perfil de leitura e revogação durante
   assert.equal(JSON.stringify(f.audits).includes('Texto privado'),false);
  }finally{await new Promise(r=>server.close(r));}
 });
+
+test('próxima resposta usa histórico e contexto da conexão sem enviar e protege exclusividade',async()=>{
+ const f=fixture();f.scoped.getConnection=async()=>({provider:'deepseek',contextBody:'Produto de teste'});f.scoped.conversationEvents=async phone=>{assert.equal(phone,'123');return [{direction:'in',text:'Como funciona?',attachment:{transcript:'Quero saber mais'}}];};
+ await assert.rejects(f.improver.improve('default','123',{text:'',mode:'next'},bob),{status:404});
+ const r=await f.improver.improve('default','123',{text:'Seja breve',mode:'next'},alice);assert.equal(r.text,'Mensagem revisada.');const args=f.calls[0].args;assert.deepEqual(args.tools,[]);assert.match(args.system,/Produto de teste/);const input=JSON.parse(args.messages[0].content);assert.equal(input.historico[0].transcript,'Quero saber mais');assert.equal(input.orientacaoOpcional,'Seja breve');assert.deepEqual(f.audits,[]);
+});
