@@ -2,11 +2,14 @@ import React,{useEffect,useRef,useState} from 'react';
 import {request} from './account.jsx';
 import {scoped} from './manage.jsx';
 import './reengagement.css';
-export function ReengagementPanel({connectionId,lead,events,enabled,busy,action}){
+export function ReengagementPanel({connectionId,lead,events,enabled,busy,action,channel}){
  const [catalog,setCatalog]=useState(null),[selected,setSelected]=useState(''),[values,setValues]=useState({}),[loading,setLoading]=useState(false),[error,setError]=useState(''),[consent,setConsent]=useState(false),[requestId,setRequestId]=useState(()=>crypto.randomUUID());const sequence=useRef(0);
  useEffect(()=>()=>{sequence.current++;},[]);
  const open=events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)>=0&&Date.now()-Date.parse(e.at)<86400000),template=catalog?.find(t=>t.name+':'+t.language===selected);
  if(!enabled||open||lead.optedOut)return null;
+ // Instagram não tem modelos aprovados: de 24h a 7 dias só o atendente humano responde; depois, só quando o cliente escrever.
+ if(channel==='instagram'){const last=Math.max(0,...events.filter(e=>e.direction==='in').map(e=>Date.parse(e.at)||0)),limit=last+7*86400000,human=Date.now()<limit;
+  return <section className="reengagement-panel" aria-label="Janela do Instagram"><div><strong>{human?'Mais de 24h sem mensagem do cliente':'Janela do Instagram encerrada'}</strong><p>{human?'No Instagram, agora só o atendente humano pode responder, até '+new Date(limit).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'. A HELENA não responde fora das 24h.':'Passaram 7 dias desde a última mensagem. No Instagram não há modelos aprovados: aguarde o cliente escrever de novo.'}</p></div></section>;}
  function choose(key){setSelected(key);setValues({});setConsent(false);setRequestId(crypto.randomUUID());}
  async function preview(){const seq=++sequence.current;setLoading(true);setError('');try{const model=await request(scoped('/leads/'+lead.telefone+'/reengage',connectionId));if(sequence.current!==seq)return;if(model.windowOpen){setError('O cliente respondeu. Atualize a conversa para enviar uma mensagem normal.');return;}setCatalog(model.templates||[]);choose(model.name+':'+model.language);setConsent(lead.cadenceConsent===true);}catch(e){if(sequence.current===seq)setError(e.message);}finally{if(sequence.current===seq)setLoading(false);}}
  async function send(e){e.preventDefault();if(!template?.supported)return;if(await action('/leads/'+lead.telefone+'/reengage',{name:template.name,language:template.language,fingerprint:template.fingerprint,values,requestId,consentConfirmed:consent},'Modelo aprovado adicionado à fila. Aguarde a resposta do cliente para enviar texto livre.',connectionId)){setCatalog(null);setConsent(false);}}

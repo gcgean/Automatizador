@@ -6,6 +6,7 @@ import {NO_INTEREST,OPT_OUT} from './closure-reasons.js';
 import {createProvider, PROVIDERS} from './llm.js';
 import {CRM_TOOL} from './crm.js';
 import {CLOSE_TOOL,closureInstructions,validateCloseRequest,closeByAi} from './ai-closure.js';
+const INSTAGRAM_CHANNEL='\n\nCANAL ATUAL: Instagram Direct. O cliente está falando pelo Instagram, não pelo WhatsApp: não diga que a conversa é no WhatsApp. Pelo Instagram a empresa só consegue responder por um tempo limitado depois da última mensagem do cliente; se o atendimento for continuar depois (apresentação, retorno da equipe), peça o WhatsApp do cliente com DDD para a equipe dar sequência.';
 import {AGENDA_TOOL} from './agenda.js';
 import {TagService} from './tags.js';
 
@@ -229,7 +230,7 @@ export class SalesAgent {
     const closeEnabled=!!(this.store.scoped&&this.store.pool);
     const mediaInstructions=this.media?'\n\nCAPACIDADES ATUAIS DE MÍDIA: A plataforma transcreve áudios e a fala de vídeos. Quando a mensagem atual for uma transcrição, use esse texto como a fala do cliente e responda normalmente. Respostas antigas dizendo que você não recebe transcrição são limitações antigas e não descrevem a configuração atual. Não diga que não consegue ouvir ou que o áudio chegou sem transcrição quando o texto foi fornecido. Se o cliente estiver testando áudio, confirme que recebeu e entendeu o conteúdo, sem inventar informações. Imagens e documentos ainda não são analisados visualmente; não invente seu conteúdo.':'';
     const currentMedia=turn.transcribed?'\nMENSAGEM ATUAL: foi recebida em áudio/vídeo e TRANSCRITA COM SUCESSO. O conteúdo da última mensagem do usuário é a transcrição. Responda ao conteúdo transcrito; não peça que o cliente o repita em texto.':'';
-    const system = await this.getSystem()+mediaInstructions+currentMedia+(agendaEnabled?await this.agenda.instructions(this.store.connectionId):'')+(crmEnabled?await this.crm.instructions(this.store.connectionId):'')+(closeEnabled?await closureInstructions(this.store.pool,this.store.connectionId):'');
+    const system = await this.getSystem()+mediaInstructions+currentMedia+(agendaEnabled?await this.agenda.instructions(this.store.connectionId):'')+(crmEnabled?await this.crm.instructions(this.store.connectionId):'')+(closeEnabled?await closureInstructions(this.store.pool,this.store.connectionId):'')+(this.config.channel==='instagram'?INSTAGRAM_CHANNEL:'');
     const tools=[...TOOLS,...(agendaEnabled?[AGENDA_TOOL]:[]),...(crmEnabled?[CRM_TOOL]:[]),...(closeEnabled?[CLOSE_TOOL]:[])];
     for (let round = 0; round < 6; round++) {
       if(Object.hasOwn(turn,'controlBefore')&&(await this.store.listLeads())[from]?.humanControlId!==turn.controlBefore)return null;

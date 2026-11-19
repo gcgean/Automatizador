@@ -168,7 +168,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(!available.some(c=>c.id===body.connectionId))return send(res,400,'Escolha um número disponível.');
         if(url.pathname==='/contacts/save')return send(res,200,await contacts.save(body.connectionId,body,currentUser));
         if(url.pathname==='/contacts/import')return send(res,200,await contacts.import(body.connectionId,body.contacts,currentUser));
-        const phone=String(body.phone||'');if(!/^\d{8,15}$/.test(phone))return send(res,400,'Contato inválido.');
+        const phone=String(body.phone||'');if(!/^\d{8,40}$/.test(phone))return send(res,400,'Contato inválido.');
         if(!canSeeLead(currentUser,await rootStore.scope(body.connectionId).getLead(phone)))return send(res,403,'Seu acesso não permite este contato.');
         if(url.pathname==='/contacts/rename'){const lead=await contacts.rename(body.connectionId,phone,body.name,currentUser);if(crm)crm.enqueue(body.connectionId,phone).catch(()=>{});return send(res,200,lead);}
         if(url.pathname==='/contacts/open'){const runtime=await registry.runtime(body.connectionId);return send(res,200,await contacts.open(body.connectionId,phone,currentUser,runtime?.inbox?.jobs||{}));}

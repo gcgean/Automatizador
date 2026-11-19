@@ -6,3 +6,5 @@ export function connectionColor(connection){
  if(connection?.id==='cilos-comercial')return palette[1];
  return palette[[...(connection?.id||'')].reduce((n,c)=>(n+c.charCodeAt(0))%palette.length,0)];
 }
+// Como mostrar o contato: @usuário no Instagram, +telefone no WhatsApp.
+export const contactHandle=(lead,connection)=>connection?.channel==='instagram'?(lead?.instagramUsername?'@'+lead.instagramUsername:'Instagram'):'+'+(lead?.telefone||lead?.phone||'');

@@ -1,11 +1,11 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {ChevronDown} from 'lucide-react';
+import {ChevronDown,Instagram} from 'lucide-react';
 import {connectionColor} from '../shared/connections.js';
 import './connections.css';
 
 export function ConnectionBadge({connection}){
  if(!connection)return null;
- return <span className="connection-badge" style={{'--connection-color':connectionColor(connection)}} title={connection.name+(connection.displayPhone?' · '+connection.displayPhone:'')}><i aria-hidden="true"/>{connection.name}</span>;
+ return <span className="connection-badge" style={{'--connection-color':connectionColor(connection)}} title={connection.name+(connection.displayPhone?' · '+connection.displayPhone:'')}><i aria-hidden="true"/>{connection.channel==='instagram'&&<Instagram size={11} aria-label="Instagram" className="connection-channel-icon"/>}{connection.name}</span>;
 }
 export function ConnectionFilter({connections,selected,onChange,disabled}){
  const [open,setOpen]=useState(false),root=useRef(null);

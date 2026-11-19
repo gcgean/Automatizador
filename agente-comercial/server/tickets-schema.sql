@@ -88,3 +88,6 @@ CREATE TABLE IF NOT EXISTS ticket_closure_reasons (
 CREATE INDEX IF NOT EXISTS ticket_closure_reason_idx ON ticket_closure_reasons(reason_id);
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS require_closure_reason boolean NOT NULL DEFAULT false;
 ALTER TABLE closure_reasons ADD COLUMN IF NOT EXISTS created_by_ai boolean NOT NULL DEFAULT false;
+
+-- Canal da conexão: whatsapp (padrão) ou instagram. Para o Instagram, phone_number_id guarda o ID da conta e display_phone o @usuário.
+ALTER TABLE whatsapp_connections ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'whatsapp';

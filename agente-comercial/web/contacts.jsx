@@ -84,7 +84,7 @@ export function Contacts({canManage=true,onOpenConversation}){
   <div className="panel contacts-table-wrap"><table className="contacts-table"><thead><tr><th>Contato</th><th>Telefone</th><th>Número</th><th>Empresa</th><th>Última conversa</th><th>Situação</th><th aria-label="Ações"/></tr></thead>
    <tbody>{data?.items.map(c=>{const [label,tone]=status(c),id=c.connectionId+c.phone;return <tr key={id}>
     <td><ContactName as="span" name={c.name||c.whatsappName||'Sem nome'} connectionId={c.connectionId} phone={c.phone} canEdit={canManage} onSave={name=>rename(c,name)}/>{c.name&&c.whatsappName&&c.whatsappName!==c.name&&<small className="contacts-wa" title="Nome no WhatsApp">WhatsApp: {c.whatsappName}</small>}</td>
-    <td className="contacts-phone">+{c.phone}</td>
+    <td className="contacts-phone">{c.channel==='instagram'?(c.instagramUsername?'@'+c.instagramUsername:'Instagram'):'+'+c.phone}</td>
     <td><span className="contacts-conn" style={{'--c':c.connectionColor||'#64748b'}}>{c.connectionName}</span></td>
     <td>{c.company||'—'}</td><td>{when(c.lastMessageAt)}</td>
     <td><span className={'contacts-status '+tone}>{label}</span></td>

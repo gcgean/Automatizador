@@ -38,10 +38,12 @@ export class Contacts{
    ORDER BY COALESCE(m.last_at,l.created_at) DESC,l.phone LIMIT $4 OFFSET $5`,[ids,term,digits,limit+1,offset]);
   const names=new Map(connections.map(c=>[c.id,c]));
   const visible=rows.filter(r=>canSeeLead(user,r.data)).slice(0,limit);
-  return {hasMore:rows.length>limit,items:visible.map(r=>({connectionId:r.connection_id,connectionName:names.get(r.connection_id)?.name||r.connection_id,connectionColor:names.get(r.connection_id)?.color||null,phone:r.phone,name:displayName(r.data),whatsappName:cleanName(r.data.nomeWhatsApp),company:cleanName(r.data.empresa),temperature:r.data.temperatura||null,ticketId:r.data.ticketId||null,conversationClosed:r.data.conversationClosed===true,hasOpenTicket:r.ticket_open===true&&r.data.conversationClosed!==true,messages:r.total||0,lastMessageAt:r.last_at,optedOut:r.data.optedOut===true,status:r.data.status||null,outcome:r.data.resultado||null,savedManually:!!r.data.contactSavedAt}))};
+  return {hasMore:rows.length>limit,items:visible.map(r=>({connectionId:r.connection_id,connectionName:names.get(r.connection_id)?.name||r.connection_id,connectionColor:names.get(r.connection_id)?.color||null,channel:names.get(r.connection_id)?.channel||'whatsapp',instagramUsername:r.data.instagramUsername||null,phone:r.phone,name:displayName(r.data),whatsappName:cleanName(r.data.nomeWhatsApp),company:cleanName(r.data.empresa),temperature:r.data.temperatura||null,ticketId:r.data.ticketId||null,conversationClosed:r.data.conversationClosed===true,hasOpenTicket:r.ticket_open===true&&r.data.conversationClosed!==true,messages:r.total||0,lastMessageAt:r.last_at,optedOut:r.data.optedOut===true,status:r.data.status||null,outcome:r.data.resultado||null,savedManually:!!r.data.contactSavedAt}))};
  }
  // Cadastro manual: não abre chamado. O chamado abre quando a equipe pedir ou quando o cliente escrever.
+ async whatsappOnly(connectionId){if((await this.store.getConnection(connectionId)).channel==='instagram')throw fail('No Instagram não dá para cadastrar ou importar contatos: a conversa começa quando o cliente escreve para a empresa.');}
  async save(connectionId,{phone,name,company},user){
+  await this.whatsappOnly(connectionId);
   const normalized=normalizePhone(phone);if(!normalized)throw fail('Informe um telefone com DDD, por exemplo (88) 99999-0000.');
   const nome=cleanName(name);if(!nome)throw fail('Informe o nome do contato.');
   const found=await this.existing(connectionId,normalized),scoped=this.store.scope(connectionId);
@@ -51,6 +53,7 @@ export class Contacts{
  }
  // Importação (arquivo .vcf/.csv ou agenda do celular): cria os novos e só preenche nome de quem ainda não tem.
  async import(connectionId,contacts,user){
+  await this.whatsappOnly(connectionId);
   if(!Array.isArray(contacts)||!contacts.length)throw fail('Nenhum contato para importar.');
   if(contacts.length>5000)throw fail('Importe até 5.000 contatos por vez.');
   const result={created:0,named:0,unchanged:0,invalid:0},seen=new Set(),scoped=this.store.scope(connectionId),at=new Date().toISOString();
