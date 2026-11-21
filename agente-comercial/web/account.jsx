@@ -1,9 +1,10 @@
+import {responseErrorMessage} from './http-error.js';
 import React,{useEffect,useState} from 'react';
 import {AttendanceReport} from './attendance-dashboard.jsx';
 import {Eye,EyeOff,ArrowRight,MessageSquare,CalendarDays,Sparkles,Mail,LockKeyhole} from 'lucide-react';
 export async function request(path,body){
  const response=await fetch(path,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:{'X-Requested-With':'CommandPanel',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
- if(!response.ok){const error=new Error(await response.text());error.status=response.status;throw error;}
+ if(!response.ok){const error=new Error(responseErrorMessage(response.status,await response.text()));error.status=response.status;throw error;}
  return response.json();
 }
 const activation=new URLSearchParams(location.hash.slice(1));

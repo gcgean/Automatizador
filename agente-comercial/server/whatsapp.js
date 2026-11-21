@@ -26,11 +26,37 @@ export function extractMessages(payload, phoneNumberId) {
   return out;
 }
 
+function describeInteractive(interactive={}) {
+ const choice=interactive.button_reply||interactive.list_reply;
+ if(choice?.title)return choice.title;
+ const flow=interactive.nfm_reply;
+ if(flow){
+  let data=flow.response_json;
+  try{if(typeof data==='string')data=JSON.parse(data);}catch{data=null;}
+  const lines=[];
+  function visit(value,path='',depth=0){
+   if(depth>6||lines.length>=80||value==null)return;
+   if(typeof value==='object'){
+    for(const [key,item] of Object.entries(value)){
+     if(/^(flow_token|token|access_token|password|secret)$/i.test(key))continue;
+     visit(item,path?path+' / '+key:key,depth+1);
+    }
+   }else if(['string','number','boolean'].includes(typeof value)){
+    const text=String(value).trim();if(text)lines.push(path+': '+text.slice(0,2000));
+   }
+  }
+  visit(data);
+  if(lines.length)return '[Respostas do formulário enviado pelo cliente]\n'+lines.join('\n').slice(0,16000);
+  return '[O cliente enviou um formulário, mas as respostas não vieram em formato legível.]';
+ }
+ return choice?.id?'[Opção selecionada: '+String(choice.id).slice(0,300)+']':'[Resposta interativa sem conteúdo legível]';
+}
+
 function describe(msg) {
   switch (msg.type) {
     case 'text': return msg.text?.body ?? '';
     case 'button': return msg.button?.text ?? '';
-    case 'interactive': return msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? '[resposta interativa]';
+    case 'interactive': return describeInteractive(msg.interactive);
     case 'audio': return '[áudio recebido]';
     case 'image': return `[O cliente enviou uma imagem${msg.image?.caption ? ` com a legenda: ${msg.image.caption}` : ''}.]`;
     case 'document': return `[O cliente enviou um documento${msg.document?.filename ? ` (${msg.document.filename})` : ''}.]`;

@@ -32,7 +32,7 @@ export function extractInstagram(payload,accountId){
     const m=ev.message;if(m.is_echo||m.is_deleted||!m.mid)continue;
     const att=(m.attachments||[])[0],kind=KIND[att?.type],story=m.reply_to?.story?'[Resposta ao seu story] ':'';
     const text=story+(m.text||describeAttachment(att)||(kind?'':'[Mensagem sem texto]'));
-    out.push({id:m.mid,...(timestamp?{timestamp}:{}),from,name:'',type:kind||'text',text,...(m.quick_reply?.payload?{interactiveReplyId:String(m.quick_reply.payload)}:{}),...(kind&&att.payload?.url?{media:{kind,id:'ig-'+crypto.createHash('sha256').update(m.mid).digest('hex').slice(0,32),url:att.payload.url,mime:'',filename:'',caption:m.text||''}}:{})});
+    out.push({id:m.mid,...(m.reply_to?.story||(m.attachments||[]).some(a=>a.type==='story_mention')?{ignoreAutomation:true,automationIgnoredReason:'instagram_story'}:{}),...(timestamp?{timestamp}:{}),from,name:'',type:kind||'text',text,...(m.quick_reply?.payload?{interactiveReplyId:String(m.quick_reply.payload)}:{}),...(kind&&att.payload?.url?{media:{kind,id:'ig-'+crypto.createHash('sha256').update(m.mid).digest('hex').slice(0,32),url:att.payload.url,mime:'',filename:'',caption:m.text||''}}:{})});
    }else if(ev.reaction?.mid){
     out.push({id:'ig-reaction-'+ev.reaction.mid+'-'+(ev.timestamp||''),...(timestamp?{timestamp}:{}),from,name:'',type:'reaction',text:ev.reaction.action==='unreact'?'[O cliente removeu a reação de uma mensagem.]':'[O cliente reagiu com '+(ev.reaction.emoji||'❤️')+' a uma mensagem.]'});
    }else if(ev.postback?.mid){

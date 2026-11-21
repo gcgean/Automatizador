@@ -72,3 +72,5 @@ Não prometer rastreamento GPS em tempo real, mapa, telemetria, rastreador inclu
 Permanecem pendentes: execução completa dos fluxos de aprovação, alertas e comissões automáticas, detalhes da IA/WhatsApp, política de suporte, implantação, treinamento, migração, hospedagem de dados, aplicativo e integrações específicas. Não inventar respostas; encaminhar à equipe quando necessário.
 
 Nenhum dado de cliente, credencial ou token faz parte desta ficha.
+
+Revisão semanal de 20/11/2026: planos e detalhes PayCore reconferidos, mantendo Essencial R$ 29,90/mês (3 veículos/1 usuário), Profissional R$ 49,90/mês (10/3) e Avançado R$ 99,90/mês (30/10). Recursos de 13/17/23 itens e trial de 7 dias permanecem. WhatsApp adicional R$ 29,00 e IA por crédito, sem preço monetário de crédito informado. Página pública mantém teste de 7 dias sem cartão. Nenhuma nova condição foi presumida.

@@ -47,6 +47,7 @@ export class Contacts{
   const normalized=normalizePhone(phone);if(!normalized)throw fail('Informe um telefone com DDD, por exemplo (88) 99999-0000.');
   const nome=cleanName(name);if(!nome)throw fail('Informe o nome do contato.');
   const found=await this.existing(connectionId,normalized),scoped=this.store.scope(connectionId);
+  if(found&&!canSeeLead(user,found.data))throw fail('Contato indisponível para seu usuário.',404);
   if(found){const lead=await scoped.updateLead(found.phone,{nome,...(cleanName(company)?{empresa:cleanName(company)}:{}),contactRenamedAt:new Date().toISOString(),contactRenamedBy:user.id});return {created:false,phone:found.phone,lead};}
   const lead=await scoped.updateLead(normalized,{nome,...(cleanName(company)?{empresa:cleanName(company)}:{}),conversationClosed:true,contactSavedAt:new Date().toISOString(),contactSavedBy:user.id,contactSource:'manual'});
   await scoped.audit('contact_saved',user.id,{phone:normalized});return {created:true,phone:normalized,lead};

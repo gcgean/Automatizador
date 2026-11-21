@@ -23,5 +23,12 @@ test('retomada manual: modelo aprovado, autorização, envio único e proteção
   await store.recordEvent({id:'new-in',phone,direction:'in',text:'Olá novamente.'});assert.equal((await service.preview('default',phone,actor)).windowOpen,true);await assert.rejects(service.enqueue('default',phone,{...body,requestId:crypto.randomUUID()},actor),/janela está aberta/);
   await store.updateLead(phone,{optedOut:true});await assert.rejects(service.preview('default',phone,actor),/bloqueado/);
   assert.equal(sent.length,2);
+  const autoPhone='5511999900022',autoBody={text:'Queria explicar nossa proposta de estoque.',requestId:crypto.randomUUID()};
+  await store.updateLead(autoPhone,{nome:'Contato sintético'});await store.recordEvent({id:'auto-old',phone:autoPhone,direction:'in',text:'Quero saber mais',at:new Date(Date.now()-48*3600000).toISOString()});
+  assert.equal((await service.automatic('default',autoPhone,autoBody,actor)).automaticTemplate,true);await runtime.inbox.drain();assert.equal(sent.length,3);assert.equal(sent[2].type,'template');
+  const event=(await store.getEvents(autoPhone)).find(e=>e.direction==='out');assert.equal(event.text,model.components[0].text);assert.equal(event.automaticTemplate,true);assert.notEqual(event.text,autoBody.text);assert.notEqual((await store.getLead(autoPhone)).cadenceConsent,true);
+  await service.automatic('default',autoPhone,autoBody,actor);await runtime.inbox.drain();assert.equal(sent.length,3);
+  await assert.rejects(service.automatic('default',autoPhone,{...autoBody,requestId:crypto.randomUUID()},actor),/já foi enviada/);
+  await store.updateLead(autoPhone,{cadenceDeclined:true});await assert.rejects(service.automatic('default',autoPhone,{...autoBody,requestId:crypto.randomUUID()},actor),/recusa/);
  }finally{await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
 });

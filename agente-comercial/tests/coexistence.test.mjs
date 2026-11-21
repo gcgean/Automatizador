@@ -5,11 +5,12 @@ import {connectBusinessApp,receiveBusinessApp} from '../server/coexistence.js';
 
 test('cadastro valida o vínculo e salva a credencial só na empresa selecionada',async()=>{
   const calls=[];
-  const registry={config:{signupConfigId:'cfg',signupAppId:'12345',signupAppSecret:'secret',connectionsKey:'key',graphVersion:'v23.0'},
+  const sector='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const registry={store:{pool:{query:async()=>({rows:[{id:sector}]})}},config:{signupConfigId:'cfg',signupAppId:'12345',signupAppSecret:'secret',connectionsKey:'key',graphVersion:'v23.0'},
     fetch:async(url)=>({ok:true,json:async()=>url.endsWith('/oauth/access_token')?{access_token:'token'}:{data:[{id:'12345',is_on_biz_app:true,display_phone_number:'55555'}]}}),
     list:async()=>[{appId:'12345',wabaId:'54321',webhookMode:'waba_override'}],
     save:(...args)=>calls.push(args)};
-  const body={phoneNumberId:'12345',wabaId:'54321',code:'code',contextId:'ctx',provider:'deepseek',name:'Comercial'};
+  const body={primaryDepartmentId:sector,departmentIds:[sector],phoneNumberId:'12345',wabaId:'54321',code:'code',contextId:'ctx',provider:'deepseek',name:'Comercial'};
   await connectBusinessApp(registry,body,'empresa');
   assert.equal(calls[0][0].webhookMode,'waba_override');
   assert.equal(calls[0][0].accessToken,'token');

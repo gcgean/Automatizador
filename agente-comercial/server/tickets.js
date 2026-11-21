@@ -1,3 +1,4 @@
+import {defaultConnectionDepartment} from './connection-departments.js';
 import {clearNoResponseTag} from './conversation-lifecycle.js';
 import crypto from 'node:crypto';
 import {canSeeLead} from './conversation-access.js';
@@ -26,19 +27,19 @@ export async function acceptTicketMessage(tx,phone,messageId,at,source='client')
  let lead=await tx.getLead(phone);
  if(!lead)lead=await tx.updateLead(phone,{});
  const {rows:[latest]}=await tx.pool.query('SELECT * FROM service_tickets WHERE connection_id=$1 AND phone=$2 ORDER BY id DESC LIMIT 1 FOR UPDATE',[tx.connectionId,phone]);
- if(!lead.conversationClosed&&lead.departmentId===undefined){
-  const {rows:sectors}=await tx.pool.query('SELECT d.id FROM departments d JOIN department_connections c ON c.department_id=d.id WHERE c.connection_id=$1 AND d.active',[tx.connectionId]);
-  if(sectors.length===1)await tx.updateLead(phone,{departmentId:sectors[0].id});
+ if(!lead.conversationClosed&&!lead.departmentId){
+  const departmentId=await defaultConnectionDepartment(tx);
+  if(departmentId)await tx.updateLead(phone,{departmentId});
  }
  const timestamp=(/^\d+$/.test(String(at))?Number(at)*1000:Date.parse(at));
  const older=Number.isFinite(timestamp)?(await tx.pool.query('SELECT id FROM service_tickets WHERE connection_id=$1 AND phone=$2 AND closed_at IS NOT NULL AND floor(extract(epoch FROM closed_at))>$3 ORDER BY closed_at ASC LIMIT 1',[tx.connectionId,phone,Math.floor(timestamp/1000)])).rows[0]:null;
  const stale=!!older||latest?.closed_at&&Number.isFinite(timestamp)&&Math.floor(timestamp/1000)<Math.floor(new Date(latest.closed_at).getTime()/1000);
  if(lead.conversationClosed&&!stale){
   await clearNoResponseTag(tx,phone,lead);
-  const {rows:departments}=await tx.pool.query('SELECT d.id FROM departments d JOIN department_connections c ON c.department_id=d.id WHERE c.connection_id=$1 AND d.active',[tx.connectionId]);
+  const departmentId=await defaultConnectionDepartment(tx);
   await tx.updateLead(phone,{conversationClosed:false,conversationClosedReason:false,conversationReopenedAt:new Date().toISOString(),conversationReopenedBy:source,
    status:lead.optedOut?'bloqueado':source==='whatsapp_app'?'encaminhado':'em_conversa',assignedUserId:false,assignedUserName:false,
-   departmentId:departments.length===1?departments[0].id:false,humanControlId:crypto.randomUUID(),businessAppControlId:false,
+   departmentId,humanControlId:crypto.randomUUID(),businessAppControlId:false,
    previousTicketOutcome:lead.resultado||false,resultado:'aberto',consultantOffer:false,consultantLastOfferedAt:false});
   await tx.audit('ticket_opened_after_close',null,{phone,previousTicketId:latest?.id,source});
  }
@@ -64,11 +65,13 @@ export async function listDepartments(store,companyId,connectionId=null){
  FROM departments d WHERE company_id=$1 AND ($2::text IS NULL OR EXISTS(SELECT 1 FROM department_connections WHERE department_id=d.id AND connection_id=$2)) ORDER BY name`,[companyId,connectionId])).rows;
 }
 export async function saveDepartment(store,companyId,body){
- if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>100||!Array.isArray(body.users)||!Array.isArray(body.connections)||body.users.some(id=>typeof id!=='string'||!/^[-a-f0-9]{36}$/i.test(id))||body.connections.some(id=>typeof id!=='string'))throw fail('Informe o nome, usuários e conexões do setor.');
+ if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>100||!Array.isArray(body.users)||(body.connections!==undefined&&!Array.isArray(body.connections))||body.users.some(id=>typeof id!=='string'||!/^[-a-f0-9]{36}$/i.test(id))||body.connections?.some(id=>typeof id!=='string'))throw fail('Informe o nome, usuários e conexões do setor.');
  const id=body.id||crypto.randomUUID();if(!/^[-a-f0-9]{36}$/i.test(id))throw fail('Setor inválido.');
  return store.transaction(async tx=>{
-  const users=[...new Set(body.users)],connections=[...new Set(body.connections)];
+  await tx.pool.query('SELECT id FROM departments WHERE id=$1 FOR UPDATE',[id]);
+  const users=[...new Set(body.users)],connections=body.connections===undefined?(await tx.pool.query('SELECT connection_id FROM department_connections WHERE department_id=$1',[id])).rows.map(r=>r.connection_id):[...new Set(body.connections)];
   if((await tx.pool.query('SELECT id FROM users WHERE company_id=$1 AND id=ANY($2::uuid[])',[companyId,users])).rowCount!==users.length||(await tx.pool.query('SELECT id FROM whatsapp_connections WHERE company_id=$1 AND id=ANY($2::text[])',[companyId,connections])).rowCount!==connections.length)throw fail('Selecione usuários e conexões desta empresa.');
+  if((await tx.pool.query('SELECT id FROM whatsapp_connections WHERE primary_department_id=$1 AND (NOT(id=ANY($2::text[])) OR $3=false)',[id,connections,body.active!==false])).rowCount)throw fail('Este é o setor principal de uma conexão. Altere o setor principal na conexão antes de remover o vínculo ou desativar o setor.');
   const saved=await tx.pool.query('INSERT INTO departments(id,company_id,name,active) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO UPDATE SET name=excluded.name,active=excluded.active WHERE departments.company_id=excluded.company_id RETURNING id',[id,companyId,body.name.trim(),body.active!==false]);
   if(!saved.rowCount)throw fail('Setor não encontrado.',404);
   await tx.pool.query('DELETE FROM department_users WHERE department_id=$1',[id]);await tx.pool.query('DELETE FROM department_connections WHERE department_id=$1',[id]);
@@ -82,6 +85,7 @@ export async function transferTicket(store,phone,body,person,user){
  return store.transaction(async tx=>{
   const {rows:[row]}=await tx.pool.query('SELECT data FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[store.connectionId,phone]);
   if(!row)throw fail('Contato não encontrado.',404);if(body.ticketId&&String(row.data.ticketId)!==String(body.ticketId))throw fail('O chamado mudou. Atualize a tela antes de transferir.',409);if(row.data.conversationClosed||row.data.optedOut)throw fail('Abra um novo chamado antes de transferir.',409);
+  if(!body.departmentId)throw fail('Escolha um setor de destino permitido para esta conexão.');
   let department=null;
   if(body.departmentId){
    if(typeof body.departmentId!=='string'||!/^[-a-f0-9]{36}$/i.test(body.departmentId))throw fail('Setor inválido.');

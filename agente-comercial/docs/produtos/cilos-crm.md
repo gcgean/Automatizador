@@ -44,3 +44,5 @@ Quando o cliente quiser conhecer, testar ou acessar o CRM, envie https://crm.cil
 
 
 Revisão de 13/11/2026: acesso autenticado, menu de configurações e área de assinatura reconferidos. Não foi encontrada tabela comercial de preços/planos nessa conta; preços e condições do teste continuam pendentes. As opções verificadas permanecem compatíveis com a ficha, sem comprovação de novas funcionalidades ou testes transacionais.
+
+Revisão semanal de 20/11/2026: acesso autenticado, módulos de configuração e área de assinatura conferidos. Não foi encontrada tabela comercial nessa conta; condições de preços/planos e do teste permanecem pendentes. Não foram realizadas transações.

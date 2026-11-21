@@ -20,7 +20,8 @@ test('múltiplos números: isolamento de histórico, contexto, fila, credenciais
   const registry=new ConnectionRegistry(store,cfg,{fetchImpl});await registry.init();
   const first=await store.getConnection();await store.saveContext(first.contextId,'Produto A','Você atende somente o produto A.');
   const contextB=await store.saveContext(null,'Produto B','Você atende somente o produto B.');
-  const b=await registry.save({name:'Número B',phoneNumberId:'99887766',contextId:contextB.id,provider:'deepseek',accessToken:'private-token-B',appSecret:'c'.repeat(32)});
+  const sector=crypto.randomUUID();await store.pool.query("INSERT INTO departments(id,company_id,name) VALUES($1,'default','Comercial QA')",[sector]);
+  const b=await registry.save({primaryDepartmentId:sector,departmentIds:[sector],name:'Número B',phoneNumberId:'99887766',contextId:contextB.id,provider:'deepseek',accessToken:'private-token-B',appSecret:'c'.repeat(32)});
   await store.pool.query('UPDATE whatsapp_connections SET enabled=true WHERE id=$1',[b.id]);
   const list=JSON.stringify(await registry.list());assert.ok(!list.includes('private-token-B'));assert.ok(!list.includes('c'.repeat(32)));assert.ok(!(await store.pool.query('SELECT access_token_cipher FROM whatsapp_connections WHERE id=$1',[b.id])).rows[0].access_token_cipher.includes('private-token-B'));
   const colored=await registry.save({...b,enabled:true,color:'#7c3aed'});assert.equal(colored.color,'#7c3aed');assert.equal(colored.enabled,true);

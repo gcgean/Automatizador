@@ -1,3 +1,4 @@
+import {SupportAssist} from './support-assist.js';
 import {ServerMonitor} from './server-monitor.js';
 import {telemetry,accumulate,routeLabel} from './telemetry.js';
 import {listAttendances,ticketHistory,listDepartments,saveDepartment,transferTicket} from './tickets.js';
@@ -270,7 +271,9 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(url.pathname==='/contexts'&&req.method==='POST'){
           if(!administrator)return send(res,403,'Gerenciar contextos compartilhados exige administrador.');
           const body=JSON.parse((await readBody(req)).toString());
-          if(typeof body.name!=='string'||!body.name.trim()||body.name.length>100||typeof body.body!=='string'||!body.body.trim()||body.body.length>40000)return send(res,400,'Informe nome e contexto (até 40.000 caracteres).');
+          if(typeof body.name!=='string'||!body.name.trim()||body.name.length>100)return send(res,400,'Informe um nome para o contexto com até 100 caracteres.');
+          if(typeof body.body!=='string'||!body.body.trim())return send(res,400,'Preencha as instruções do contexto.');
+          if(body.body.length>120000)return send(res,400,'O contexto excede o limite de 120.000 caracteres. Reduza o texto antes de salvar.');
           if(body.id&&(typeof body.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(body.id)))return send(res,400,'Identificador inválido.');
           return send(res,200,await store.saveContext(body.id,body.name.trim(),body.body,'operator',companyId));
         }
@@ -512,7 +515,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(currentLead?.conversationClosed)return send(res,409,'Reabra a conversa antes de enviar mensagens.');
         if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
-        if (!['instagram','youtube'].includes((await store.getConnection?.())?.channel) && !events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) return send(res, 409, 'Envio livre disponível somente após mensagem do cliente nas últimas 24 horas.');
+        if (!['instagram','youtube'].includes((await store.getConnection?.())?.channel) && !events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) {if(reengagement&&currentUser)return send(res,202,await reengagement.automatic(connectionId,phone,body,currentUser));return send(res,409,'Retomada automática indisponível nesta conexão.');}
         if(body.sign!==undefined&&typeof body.sign!=='boolean')return send(res,400,'Opção de assinatura inválida.');
         const chooseSignature=!auth||can(currentUser,'signature.choose');
         if(!chooseSignature&&body.sign!==undefined&&body.sign!==currentUser.signature_default)return send(res,403,'Seu grupo não permite alterar a assinatura.');
@@ -623,6 +626,8 @@ async function main() {
   const pipeline=registry?new Pipeline(store,auth):null;
   if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await pipeline.init();}
   const meta=registry?new MetaConversions(store,registry):null;
+  const supportAssist=registry&&!config.panelOnly?new SupportAssist(store,registry):null;
+  if(supportAssist)await supportAssist.init();
   const textImprover=registry?new TextImprover(store):null;
   if(meta){await meta.init();registry.meta=meta;if(crm)crm.deals.meta=meta;}
   const simulation=registry?new SimulationService(store,config):null;
@@ -638,6 +643,7 @@ async function main() {
   const learningTimer=learning?setInterval(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),3600000):null;
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
+  const supportTimer=supportAssist?setInterval(()=>supportAssist.tick().catch(()=>console.error('[apoio] Falha na varredura.')),60000):null;
   const pushTimer=registry&&!config.panelOnly?setInterval(()=>registry.push.tick().catch(()=>console.error('[push] Falha ao processar notificações.')),10000):null;
   const youtubeTimer=registry?.youtube&&!config.panelOnly?setInterval(()=>registry.youtube.tick().catch(()=>console.error('[youtube] Falha ao ler comentários.')),300000):null;
   const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
@@ -651,7 +657,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(supportTimer);clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await supportAssist?.close();await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }

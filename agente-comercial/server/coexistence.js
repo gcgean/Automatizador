@@ -1,8 +1,10 @@
+import {validateConnectionDepartments} from './connection-departments.js';
 import {acceptTicketMessage} from './tickets.js';
 const fields = ['messages', 'smb_message_echoes', 'smb_app_state_sync', 'history', 'account_update', 'message_template_status_update'];
 export const coexistenceFields = fields;
 
 export async function connectBusinessApp(registry, body, companyId) {
+  await validateConnectionDepartments(registry.store,companyId,body);
   const {config} = registry;
   const {code, phoneNumberId} = body;
   const accounts = body.messagingAccountIds ?? [body.wabaId];
@@ -34,7 +36,7 @@ export async function connectBusinessApp(registry, body, companyId) {
   }
   if (![true,'true'].includes(phone?.is_on_biz_app)) throw fail('A Meta não confirmou a coexistência deste número na conta selecionada.');
   const webhookMode = 'waba_override';
-  return registry.save({webhookMode,name:body.name,contextId:body.contextId,provider:body.provider,phoneNumberId,wabaId,appId:config.signupAppId,appSecret:config.signupAppSecret,accessToken:token,displayPhone:phone.display_phone_number},companyId,true);
+  return registry.save({primaryDepartmentId:body.primaryDepartmentId,departmentIds:body.departmentIds,webhookMode,name:body.name,contextId:body.contextId,provider:body.provider,phoneNumberId,wabaId,appId:config.signupAppId,appSecret:config.signupAppSecret,accessToken:token,displayPhone:phone.display_phone_number},companyId,true);
 }
 
 export async function receiveBusinessApp(store, payload, phoneNumberId, mediaService) {

@@ -11,3 +11,5 @@ CREATE INDEX IF NOT EXISTS cadence_reply_deadline ON cadence_queue(next_at) WHER
 CREATE INDEX IF NOT EXISTS messages_cadence_attempt ON messages(connection_id,(data->>'cadenceAttemptId')) WHERE data ? 'cadenceAttemptId';
 ALTER TABLE cadence_settings ADD COLUMN IF NOT EXISTS next_template_name text;
 ALTER TABLE cadence_settings ADD COLUMN IF NOT EXISTS next_language text;
+
+ALTER TABLE cadence_settings ADD COLUMN IF NOT EXISTS template_sequence jsonb NOT NULL DEFAULT '[]'::jsonb;
