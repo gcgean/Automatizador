@@ -1,0 +1,36 @@
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+import {Pool} from 'pg';
+import {chromium} from 'playwright';
+import {fileURLToPath} from 'node:url';
+import {createApp} from '../server/index.js';
+import {PgStore} from '../server/pg-store.js';
+import {PasswordAuth} from '../server/auth.js';
+import {ConnectionRegistry} from '../server/connections.js';
+import {CommercialGrowth} from '../server/commercial-growth.js';
+import {Demonstrations} from '../server/demonstrations.js';
+import {CallingService} from '../server/calling.js';
+import {ConsultantRouting} from '../server/consultant-routing.js';
+const url=new URL(process.env.TEST_DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');assert.equal(url.port,'5548');
+const db=new Pool({connectionString:url.toString()}),schema='demo_ui_'+crypto.randomBytes(8).toString('hex');await db.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);
+await fs.mkdir('test-results',{recursive:true});const dir=await fs.mkdtemp(path.resolve('test-results/growth-'));const store=new PgStore(url.toString(),dir);let browser,server,registry,testPage;
+try{
+ await store.init();const config={databaseUrl:url.toString(),dataDir:dir,panelOnly:true,adminEmail:'growth-ui@qa.test',adminSetupToken:'synthetic-setup',publicUrl:'http://127.0.0.1',aiProvider:'deepseek',connectionsKey:'b'.repeat(64),phoneNumberId:'1000000000000',appId:'1000000000000',wabaId:'1000000000000',sellerNumbers:[],scriptFile:fileURLToPath(new URL('../server/roteiro-comercial.md',import.meta.url))};
+ const auth=new PasswordAuth(store,config);await auth.init();registry=new ConnectionRegistry(store,config,{fetchImpl:async()=>{throw Error('Nenhuma API externa é permitida neste teste');}});await registry.init();registry.routing=new ConsultantRouting(store);registry.growth=new CommercialGrowth(store,config);registry.growth.bind(registry);await registry.growth.init();registry.demonstrations=new Demonstrations(store,{...config,demonstrationTranscriberUrl:'http://synthetic'},{fetchImpl:async(u,o)=>{for await(const c of o.body){}return Response.json({text:'Como cadastrar produto e consultar estoque.',duration:12,segments:[{start:0,end:12,text:'Cadastro de produto no estoque.'}]});},providerFactory:()=>({complete:async()=>({text:JSON.stringify({summary:'Mostra como cadastrar um produto e consultar estoque.',tags:['produto','estoque'],questions:['Como cadastrar produto?'],chapters:[{at:0,label:'Cadastrar produto'}]}),toolCalls:[]})})});registry.demonstrations.bind(registry);await registry.demonstrations.init();
+ await store.pool.query("UPDATE whatsapp_connections SET enabled=true,display_phone='+55 85 99999-0000' WHERE id='default'");
+ const calling=new CallingService(store,config);await calling.init();calling.bind(registry);server=http.createServer(createApp({config,store,auth,registry,calling}));await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;config.publicUrl=base;registry.demonstrations.config.publicUrl=base;
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=testPage=await browser.newPage({viewport:{width:1440,height:960}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/#setup=synthetic-setup&email=growth-ui%40qa.test');await page.getByLabel('Senha',{exact:true}).fill('Synthetic-password-2026');await page.getByLabel('Confirme sua senha').fill('Synthetic-password-2026');await page.getByRole('button',{name:'Criar senha e entrar'}).click();
+ await page.getByRole('button',{name:'Configurações',exact:true}).click();await page.getByRole('button',{name:'Vídeos e demonstrações',exact:true}).click();await page.getByRole('heading',{name:'Vídeos e demonstrações',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Novo vídeo ou transcrição',exact:true}).click();await page.getByLabel('Título',{exact:true}).fill('Como cadastrar produto');await page.getByLabel(/^Produto relacionado/).selectOption('estoque');
+ await page.getByLabel('Arquivo original para transcrever').setInputFiles({name:'demonstracao-sintetica.mp4',mimeType:'video/mp4',buffer:Buffer.from('synthetic-video-content')});await page.getByRole('button',{name:'Salvar e transcrever',exact:true}).click();await page.getByRole('status').filter({hasText:'Arquivo recebido.'}).waitFor();await registry.demonstrations.tick();
+ await page.getByRole('status').filter({hasText:'Pronto para revisão'}).waitFor();assert.ok((await page.getByLabel('Resumo revisado para a IA').inputValue()).includes('produto'));assert.equal(await page.getByRole('button',{name:'Liberar para a IA',exact:true}).isDisabled(),true);
+ await page.getByLabel(/^Revisei o conteúdo/).check();await page.getByRole('button',{name:'Liberar para a IA',exact:true}).click();await page.getByRole('status').filter({hasText:'Demonstração liberada'}).waitFor();
+ await page.screenshot({path:path.join(dir,'videos-desktop.png'),fullPage:true});await page.getByRole('button',{name:'Fechar edição',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.locator('.demo-card').first().scrollIntoViewIfNeeded();await page.screenshot({path:path.join(dir,'videos-mobile.png'),fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ const phone='5511999900001';await store.scope('default').updateLead(phone,{nome:'Contato fictício'});const video=(await registry.demonstrations.published('default'))[0],link=await registry.demonstrations.makeLink('default',phone,video);const viewer=await browser.newPage({viewport:{width:390,height:844}});await viewer.goto(link.url);await viewer.getByRole('heading',{name:'Como cadastrar produto'}).waitFor();assert.equal(await viewer.getByRole('link',{name:'Testar o sistema'}).count(),0);
+ const played=viewer.waitForResponse(r=>r.url().endsWith('/events')&&r.request().method()==='POST');await viewer.evaluate(()=>document.getElementById('demo-native').dispatchEvent(new Event('play')));await played;const ended=viewer.waitForResponse(r=>r.url().endsWith('/events')&&r.request().method()==='POST');await viewer.evaluate(()=>document.getElementById('demo-native').dispatchEvent(new Event('ended')));await ended;
+ assert.equal((await registry.demonstrations.metrics('default',await auth.identity((await store.pool.query("SELECT id FROM users WHERE email='growth-ui@qa.test'")).rows[0].id)))[0].plays,1);await viewer.screenshot({path:path.join(dir,'reproducao-mobile.png'),fullPage:true});assert.ok(await viewer.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);console.log(JSON.stringify({ok:true,screenshots:dir}));
+}catch(e){if(testPage){await testPage.screenshot({path:path.join(dir,'failure.png'),fullPage:true});console.log((await testPage.locator('body').innerText()).slice(-3500));console.log('screenshot',path.join(dir,'failure.png'));}throw e;}finally{await browser?.close();if(server)await new Promise(r=>server.close(r));await registry?.drain();await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}

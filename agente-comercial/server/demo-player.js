@@ -1,0 +1,11 @@
+// Público e sem dados do lead. Os eventos representam observações do navegador.
+(()=>{
+ const root=document.querySelector('main'),link=root.dataset.link,native=document.getElementById('demo-native'),frame=document.getElementById('demo-youtube'),seen=new Set();let youtube=null,timer=null;
+ function event(kind,progress=0){const key=kind+':'+progress;if(!link||seen.has(key))return;seen.add(key);fetch('/assistir/'+link+'/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,progress}),keepalive:true}).then(r=>{if(!r.ok)seen.delete(key);}).catch(()=>seen.delete(key));}
+ function progress(current,duration){if(!Number.isFinite(duration)||duration<=0)return;const percent=current/duration*100;for(const n of [25,50,75])if(percent>=n)event('progress',n);}
+ function seek(seconds){if(native)native.currentTime=seconds;else if(youtube?.seekTo){youtube.seekTo(seconds,true);youtube.playVideo();}}
+ document.querySelectorAll('[data-seek]').forEach(button=>button.addEventListener('click',()=>seek(Number(button.dataset.seek))));
+ if(native){native.addEventListener('loadedmetadata',()=>{const start=Number(root.dataset.start);if(start>0&&start<native.duration)native.currentTime=start;});native.addEventListener('play',()=>event('play'));native.addEventListener('timeupdate',()=>progress(native.currentTime,native.duration));native.addEventListener('ended',()=>event('complete',100));}
+ if(frame){window.onYouTubeIframeAPIReady=()=>{youtube=new window.YT.Player('demo-youtube',{events:{onStateChange(e){if(e.data===window.YT.PlayerState.PLAYING){event('play');clearInterval(timer);timer=setInterval(()=>progress(youtube.getCurrentTime(),youtube.getDuration()),2000);}else{clearInterval(timer);if(e.data===window.YT.PlayerState.ENDED)event('complete',100);}},onError(){document.getElementById('demo-player-status').textContent='Não foi possível reproduzir aqui. Use o link Abrir no YouTube.';}}});};const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';script.onerror=()=>{document.getElementById('demo-player-status').textContent='Use Abrir no YouTube para assistir.';};document.head.appendChild(script);}
+ window.addEventListener('pagehide',()=>clearInterval(timer));
+})();

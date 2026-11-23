@@ -1,4 +1,7 @@
+import {Demonstrations} from './demonstrations.js';
+import fsPromises from 'node:fs/promises';
 import {SupportAssist} from './support-assist.js';
+import {CommercialGrowth} from './commercial-growth.js';
 import {ServerMonitor} from './server-monitor.js';
 import {telemetry,accumulate,routeLabel} from './telemetry.js';
 import {listAttendances,ticketHistory,listDepartments,saveDepartment,transferTicket} from './tickets.js';
@@ -72,6 +75,23 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
     try {
       res.setHeader('Cache-Control', 'no-store');
       if (await servePanel(req, res, url.pathname)) return;
+      const growth=registry?.growth;
+      const demonstrations=registry?.demonstrations;
+      if(req.method==='GET'&&url.pathname==='/demo-player.js'){const script=await fsPromises.readFile(new URL('./demo-player.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','X-Content-Type-Options':'nosniff'});return res.end(script);}
+      const demoPage=url.pathname.match(/^\/(demonstracoes|assistir)\/([a-f0-9-]{36})(\/media|\/events)?$/i);
+      if(demonstrations&&demoPage){const tracked=demoPage[1]==='assistir',id=demoPage[2];
+        if(!demoPage[3]&&req.method==='GET'){const html=await demonstrations.page(id,tracked);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'unsafe-inline'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; media-src 'self'; connect-src 'self' https://www.youtube.com; img-src https://i.ytimg.com; frame-ancestors 'none'; base-uri 'none'",'Referrer-Policy':'strict-origin-when-cross-origin','X-Content-Type-Options':'nosniff'});return res.end(html);}
+        if(!tracked&&demoPage[3]==='/media'&&req.method==='GET')return await demonstrations.serveMedia(null,id,req,res,null,true);
+        if(tracked&&demoPage[3]==='/events'&&req.method==='POST'){if(req.headers.origin&&req.headers.origin!==new URL(config.publicUrl).origin)return send(res,403,'Origem inválida.');return send(res,200,await demonstrations.event(id,JSON.parse((await readBody(req,1024)).toString())));}
+        return send(res,405,'Método não permitido.');
+      }
+
+      const commercialPage=url.pathname.match(/^\/conhecer\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})$/);
+      if(commercialPage&&req.method==='GET'&&growth){const html=await growth.publicPage(commercialPage[1],commercialPage[2],url.searchParams.get('commercial_ref'));res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});return res.end(html);}
+      const tracking=url.pathname.match(/^\/t\/([a-f0-9-]{36})$/i);
+      if(tracking&&req.method==='GET'&&growth){const destination=await growth.redirect(tracking[1]);res.writeHead(302,{Location:destination,'Referrer-Policy':'no-referrer','Cache-Control':'no-store'});return res.end();}
+      const productEvent=url.pathname.match(/^\/product-events\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})$/);
+      if(productEvent&&req.method==='POST'&&growth)return send(res,200,await growth.receiveEvent(productEvent[1],productEvent[2],await readBody(req,16384),req.headers));
       if (auth && await auth.handle(req,res,url,readBody,send)) return;
       if (req.method === 'GET' && url.pathname === '/health') {
         await store.health?.();
@@ -111,6 +131,43 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       if (auth && req.method === 'POST' && !auth.sameOrigin(req)) return send(res,403,'Origem da solicitação inválida.');
       const administrator=!auth||currentUser?.role==='admin';
       const companyId=currentUser?.company_id||'default';
+      if(url.pathname==='/demonstrations'||url.pathname.startsWith('/demonstrations/')){
+        if(!currentUser||!registry?.demonstrations)return send(res,401,'unauthorized');
+        const library=registry.demonstrations,id=url.searchParams.get('connection')||'default';await library.access(currentUser,id);
+        if(url.pathname==='/demonstrations'&&req.method==='GET')return send(res,200,await library.list(id,currentUser));
+        if(url.pathname==='/demonstrations/contact'&&req.method==='GET'){const phone=url.searchParams.get('phone');if(!/^\d{8,40}$/.test(phone||''))return send(res,400,'Contato inválido.');return send(res,200,await library.contact(id,phone,currentUser));}
+        if(url.pathname==='/demonstrations/template'&&req.method==='GET')return send(res,200,await library.template(id,currentUser));
+        if(url.pathname==='/demonstrations/metrics'&&req.method==='GET')return send(res,200,await library.metrics(id,currentUser));
+        const item=url.pathname.match(/^\/demonstrations\/([a-f0-9-]{36})(?:\/(upload|publish|process|media|transcript))?$/i);
+        if(item&&req.method==='GET'){
+          if(item[2]==='media')return await library.serveMedia(id,item[1],req,res,currentUser);
+          if(item[2]==='transcript'){if(!administrator)return send(res,403,'Acesso restrito.');const video=await library.detail(id,item[1],currentUser);res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Content-Disposition':'attachment; filename="transcricao.txt"'});return res.end(video.transcript);}
+          if(!item[2])return send(res,200,await library.detail(id,item[1],currentUser));
+        }
+        if(req.method!=='POST')return send(res,405,'Método não permitido.');
+        if(item?.[2]==='upload')return send(res,200,await library.upload(id,item[1],req,currentUser,Number(req.headers['x-video-version'])));
+        const body=JSON.parse((await readBody(req,400000)).toString());
+        if(url.pathname==='/demonstrations/template')return send(res,200,await library.template(id,currentUser,true));
+        if(url.pathname==='/demonstrations')return send(res,201,await library.save(id,null,body,currentUser));
+        if(item){if(item[2]==='publish')return send(res,200,await library.publish(id,item[1],body,currentUser));if(item[2]==='process')return send(res,200,await library.queue(id,item[1],body,currentUser));if(!item[2])return send(res,200,await library.save(id,item[1],body,currentUser));}
+        return send(res,404,'not found');
+      }
+      if(url.pathname.startsWith('/commercial/')){
+        if(!currentUser||!registry?.growth)return send(res,401,'unauthorized');
+        const service=registry.growth,id=url.searchParams.get('connection')||'default';await service.assertConnection(currentUser,id);
+        if(!(await rootStore.pool.query('SELECT 1 FROM companies WHERE id=$1 AND active',[companyId])).rowCount)return send(res,403,'Empresa pausada.');
+        if(url.pathname==='/commercial/catalog'&&req.method==='GET')return send(res,200,await service.products(id));
+        if(url.pathname==='/commercial/contact'&&req.method==='GET'){const phone=url.searchParams.get('phone');if(!can(currentUser,'conversations.view')||!/^\d{8,40}$/.test(phone||'')||!canSeeLead(currentUser,await rootStore.scope(id).getLead(phone)))return send(res,403,'Atendimento indisponível.');return send(res,200,await service.summary(id,phone));}
+        if(url.pathname==='/commercial/report'&&req.method==='GET'){if(!can(currentUser,'conversations.view'))return send(res,403,'Sem permissão.');return send(res,200,await service.report(id,currentUser));}
+        if(url.pathname==='/commercial/telegram'&&req.method==='GET'){if(!administrator)return send(res,403,'Acesso restrito.');return send(res,200,await service.telegramStatus(currentUser));}
+        if(req.method!=='POST')return send(res,405,'Método não permitido.');
+        const body=JSON.parse((await readBody(req,32768)).toString());
+        if(url.pathname==='/commercial/catalog')return send(res,200,await service.saveProduct(id,body,currentUser));
+        if(url.pathname==='/commercial/integration')return send(res,200,await service.rotateIntegration(id,body.productId,currentUser));
+        if(url.pathname==='/commercial/telegram')return send(res,200,await service.saveTelegram(currentUser,body));
+        if(url.pathname==='/commercial/assume'){if(!/^\d{8,40}$/.test(body.phone||''))return send(res,400,'Contato inválido.');return send(res,200,await service.assume(id,body.phone,currentUser));}
+        return send(res,404,'not found');
+      }
       if(url.pathname==='/server-monitor'){if(!currentUser?.platform_admin||!rootStore.monitor)return send(res,403,'Monitoramento exclusivo do administrador da plataforma.');if(req.method!=='GET')return send(res,405,'Método não permitido.');return send(res,200,await rootStore.monitor.report(url.searchParams.get('days')==='7'?7:1,url.searchParams.get('filterConnection')||null));}
       if(url.pathname.startsWith('/push/')){
         if(!currentUser||!push)return send(res,401,'unauthorized');
@@ -355,7 +412,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(reminders&&url.pathname==='/agenda/reminders'&&req.method==='GET')return send(res,200,await access.filter(await reminders.list(connectionId)));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='GET')return send(res,200,await cadence.settings(connectionId));
         if(cadence&&url.pathname==='/cadence/settings'&&req.method==='POST')return send(res,200,await cadence.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
-        if(cadence&&url.pathname==='/cadence/templates'&&req.method==='GET')return send(res,200,await cadence.templates(connectionId));
+        if(cadence&&url.pathname==='/cadence/templates'&&req.method==='GET')return send(res,200,await cadence.templates(connectionId,url.searchParams.get('includeDynamic')==='true'));
         if(cadence&&url.pathname==='/cadence/queue'&&req.method==='GET')return send(res,200,await access.filter(await cadence.list(connectionId)));
         if(crm&&url.pathname==='/crm/deals/settings'&&req.method==='GET')return send(res,200,await crm.deals.settings(connectionId));
         if(crm&&url.pathname==='/crm/deals/settings'&&req.method==='POST')return send(res,200,await crm.deals.save(connectionId,JSON.parse((await readBody(req)).toString()),currentUser?.id||null));
@@ -624,7 +681,7 @@ async function main() {
   cadence?.bind(registry);media?.bind(registry);
   const reengagement=registry?new Reengagement(store,registry,cadence,auth):null;
   const pipeline=registry?new Pipeline(store,auth):null;
-  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await pipeline.init();}
+  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.growth=new CommercialGrowth(store,config);registry.growth.bind(registry);registry.demonstrations=new Demonstrations(store,config);registry.demonstrations.bind(registry);await registry.demonstrations.init();registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await registry.growth.init();await pipeline.init();}
   const meta=registry?new MetaConversions(store,registry):null;
   const supportAssist=registry&&!config.panelOnly?new SupportAssist(store,registry):null;
   if(supportAssist)await supportAssist.init();
@@ -644,6 +701,8 @@ async function main() {
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
   const supportTimer=supportAssist?setInterval(()=>supportAssist.tick().catch(()=>console.error('[apoio] Falha na varredura.')),60000):null;
+  const demonstrationTimer=registry&&!config.panelOnly?setInterval(()=>registry.demonstrations.tick().catch(()=>console.error('[demonstrações] Falha ao processar biblioteca.')),15000):null;
+  const growthTimer=registry&&!config.panelOnly?setInterval(()=>registry.growth.tick().catch(()=>console.error('[comercial] Falha ao conferir acompanhamento.')),15000):null;
   const pushTimer=registry&&!config.panelOnly?setInterval(()=>registry.push.tick().catch(()=>console.error('[push] Falha ao processar notificações.')),10000):null;
   const youtubeTimer=registry?.youtube&&!config.panelOnly?setInterval(()=>registry.youtube.tick().catch(()=>console.error('[youtube] Falha ao ler comentários.')),300000):null;
   const metaTimer=meta?setInterval(()=>meta.tick().catch(()=>console.error('[meta] Falha ao processar eventos de conversão.')),5000):null;
@@ -657,7 +716,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(supportTimer);clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await supportAssist?.close();await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(demonstrationTimer);clearInterval(growthTimer);clearInterval(supportTimer);clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await supportAssist?.close();await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.demonstrations?.running;await registry?.growth?.running;await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }

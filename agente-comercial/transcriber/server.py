@@ -11,10 +11,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.respond(200 if self.path=='/health' else 404,{'ready':True,'model':os.getenv('WHISPER_MODEL','small')})
     def do_POST(self):
-        if self.path not in ('/transcribe','/convert-audio','/convert-audio-m4a'):return self.respond(404,{'error':'Rota não encontrada'})
+        if self.path not in ('/transcribe','/transcribe-library','/convert-audio','/convert-audio-m4a'):return self.respond(404,{'error':'Rota não encontrada'})
         try:size=int(self.headers.get('Content-Length','0'))
         except ValueError:return self.respond(400,{'error':'Tamanho inválido'})
-        if size<1 or size>16*1024*1024:return self.respond(413,{'error':'Áudio/vídeo deve ter até 16 MB'})
+        library=self.path=='/transcribe-library'
+        limit=64*1024*1024 if library else 16*1024*1024
+        if size<1 or size>limit:return self.respond(413,{'error':'Arquivo deve ter até 64 MB' if library else 'Áudio/vídeo deve ter até 16 MB'})
         if not lock.acquire(timeout=10):return self.respond(503,{'error':'Transcrição ocupada, tente novamente'})
         filename=None
         try:
@@ -34,9 +36,10 @@ class Handler(BaseHTTPRequestHandler):
                     if os.path.exists(output):os.unlink(output)
             segments,info=model.transcribe(filename,language='pt',beam_size=5,vad_filter=True,condition_on_previous_text=False)
             if info.duration>600:return self.respond(413,{'error':'Áudio com mais de dez minutos; arquivo preservado para a equipe'})
-            text=' '.join(s.text.strip() for s in segments).strip()
-            if len(text)>20000:return self.respond(413,{'error':'Transcrição muito longa; arquivo preservado para a equipe'})
-            return self.respond(200,{'text':text,'language':'pt','duration':info.duration})
+            timed=[{'start':round(s.start,2),'end':round(s.end,2),'text':s.text.strip()} for s in segments]
+            text=' '.join(s['text'] for s in timed).strip()
+            if len(text)>(80000 if library else 20000):return self.respond(413,{'error':'Transcrição muito longa; arquivo preservado para a equipe'})
+            return self.respond(200,{'text':text,'language':'pt','duration':info.duration,**({'segments':timed[:2000]} if library else {})})
         except AudioLimitError as error:return self.respond(413,{'error':str(error)})
         except Exception:return self.respond(422,{'error':'Gravação inválida ou sem áudio. Grave novamente e confira a prévia.' if self.path.startswith('/convert-audio') else 'Não foi possível transcrever o áudio deste arquivo'})
         finally:

@@ -94,3 +94,27 @@ O cadastro em coexistência depende do Embedded Signup configurado no aplicativo
 Uma nova mensagem recebida após a finalização abre um novo chamado para o mesmo cliente e número. Mensagens novas enviadas pelo celular em coexistência também podem iniciar outro chamado, sob controle humano. A chegada de um contato novo gera aviso externo para usuários autorizados com notificações habilitadas no dispositivo.
 
 Revisão semanal de 20/11/2026: ficha e catálogo comparados com a documentação/código publicado e contexto ativo. Os recursos recentes já estavam incorporados à base HELENA da conexão Cilos; preservados sem duplicação e sem voltar a identidade anterior. Sem nova tabela de preços confirmada. O contexto Cilos existente tem 53.877 caracteres, acima do limite solicitado de 40.000; esta revisão não o ampliou nem reescreveu instruções aprovadas para reduzi-lo. Recomenda-se consolidação específica com conferência semântica antes de nova ampliação.
+
+<!-- commercial-growth-2026-11-23:start -->
+## Teste e acompanhamento comercial — 23/11/2026
+
+A plataforma oferece catálogo de produtos e links por conexão, páginas públicas por produto, condições de teste confirmadas, tags ampliadas e seleção de convite de cadência pelo interesse. A ferramenta de link gera endereço individual sem exigir qualificação completa. Cadastro, ativação, retorno e contratação só são confirmados após eventos assinados do sistema de origem; gerar uma chave não instala essa integração no produto. O painel mostra até 100 acompanhamentos e métricas de eventos dos últimos 30 dias, sem atribuição causal automática.
+
+Pedidos explícitos de atendimento humano agora têm prioridade mesmo sem temperatura quente. A atribuição depende de expediente, sessão, disponibilidade, permissão e setor; sem vendedor elegível, fica um pedido sinalizado e a IA pode entregar a página ou teste confirmado. Há aceite no painel e alerta ao gestor por prazo vencido. Não prometer ligação ou resposta em prazo garantido.
+
+Integração opcional com Telegram permite configurar bot e destinatários por empresa, com credenciais cifradas e alertas genéricos que abrem o painel autenticado. Depende de token do bot, Chat IDs e início da conversa com o bot; não significa Telegram já ativo para todas as contas. Timeout de envio não é repetido automaticamente. Cadência específica depende de modelo aprovado pela Meta. Recusa interrompe o acompanhamento.
+
+A integração com Analytics e os emissores de eventos dos produtos dependem de configuração e acesso próprios. Não anunciar acompanhamento de uso já instalado em sistemas externos nem teste gratuito dos produtos sem condições confirmadas. Condições comerciais, valores e disponibilidade dos demais produtos permanecem preservados.
+<!-- commercial-growth-2026-11-23:end -->
+
+<!-- demonstrations-2026-11-23:start -->
+## Biblioteca de demonstrações e transcrição
+
+A plataforma permite cadastrar demonstrações por conexão, produto e assunto, com link do YouTube e/ou arquivo original. Administradores podem transcrever vídeos MP4/WebM e áudios MP3/M4A/OGG/WAV de até 64 MB e dez minutos, importar TXT/SRT/VTT, baixar a transcrição e gerar rascunhos de resumo, assuntos, dúvidas e capítulos. A transcrição cobre a fala, não analisa visualmente a tela. A análise automática exige o provedor de IA e o transcritor configurados. Link do YouTube sozinho não garante transcrição; fornecer original ou legendas autorizadas.
+
+Somente material revisado e liberado pelo administrador é usado pela ferramenta buscar_demonstracao. A HELENA pode selecionar um vídeo relacionado à dúvida e enviar o link individual com trecho pertinente, sem repetir a versão já enviada salvo pedido expresso. Pedido de atendimento humano agora continua prioritário. Vídeos não comprovam plano, preços, condições ou compatibilidade atuais; usar o catálogo confirmado.
+
+A página de reprodução apresenta capítulos e botão de teste quando há teste confirmado. Registros de acesso, início, posições e chegada ao final são observações do navegador, não prova de que todo o vídeo foi assistido, de identidade, cadastro ou contratação. Editar ou retirar a demonstração invalida links individuais antigos. Sem YouTube, publicar autoriza a reprodução do original por link público; usar demonstrações sem dados de clientes ou segredos.
+
+Na cadência, o vídeo depende de modelo de marketing aprovado pela Meta, conteúdo pertinente e elegibilidade do atendimento. Preparar o modelo não envia mensagens nem garante sua aprovação. Não anunciar que já existem vídeos cadastrados ou integrações de Analytics instaladas se isso não estiver confirmado na conta.
+<!-- demonstrations-2026-11-23:end -->

@@ -9,6 +9,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3333
       DATA_DIR: /app/server/data
+      DEMONSTRATION_TRANSCRIBER_URL: http://demonstration-transcriber:8000
     ports:
       - "127.0.0.1:3333:3333"
     volumes:
@@ -39,6 +40,24 @@ services:
       timeout: 5s
       retries: 30
       start_period: 300s
+  demonstration-transcriber:
+    build: ./transcriber
+    image: command-comercial-demonstration-transcriber:latest
+    container_name: command_comercial_demonstration_transcriber
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: small
+    volumes:
+      - transcription_models:/models
+    cpus: 1
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 300s
+
   postgres:
     image: postgres:17-alpine
     container_name: command_comercial_postgres

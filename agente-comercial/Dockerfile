@@ -16,6 +16,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY server ./server
 COPY shared ./shared
 COPY logo-command-comercial.jpg ./
+COPY scripts ./scripts
 COPY --from=build /app/dist ./dist
 RUN mkdir -p server/data && chown node:node /app/server/data
 USER node

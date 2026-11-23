@@ -17,6 +17,22 @@ const normalized=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,''
 export class ConsultantRouting{
  constructor(store,{now=()=>new Date()}={}){this.store=store;this.now=now;}
  async settings(company){return (await this.store.pool.query('SELECT data FROM company_handoff_settings WHERE company_id=$1',[company])).rows[0]?.data||defaultHours();}
+ async assignImmediate(agent,phone){
+  const store=agent.store;
+  return store.transaction(async tx=>{
+   const connection=await tx.getConnection();await tx.pool.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['consultant-routing:'+connection.company_id]);
+   const {rows:[row]}=await tx.pool.query('SELECT data FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[store.connectionId,phone]);const lead=row?.data;
+   if(!lead||lead.optedOut||lead.cadenceDeclined||lead.conversationClosed||lead.assignedUserId||lead.status==='encaminhado'||['ganho','perdido'].includes(lead.resultado)||!connection.enabled||!connection.company_active||!businessOpen(await this.settings(connection.company_id),this.now()))return null;
+   const candidate=(await this.candidates(tx,connection.company_id,store.connectionId,lead.departmentId))[0];if(!candidate)return null;
+   await tx.pool.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[candidate.id]);
+   if(!(await this.candidates(tx,connection.company_id,store.connectionId,lead.departmentId)).some(u=>u.id===candidate.id))return null;
+   await tx.updateLead(phone,{status:'encaminhado',humanControlId:crypto.randomUUID(),assignedUserId:candidate.id,assignedUserName:candidate.name||'Consultor',salesPriority:true,consultantConsentAt:this.now().toISOString()});
+   await tx.pool.query('UPDATE users SET last_auto_assignment_at=$2 WHERE id=$1',[candidate.id,this.now()]);
+   await tx.pool.query('INSERT INTO user_notifications(id,user_id,company_id,connection_id,phone) VALUES($1,$2,$3,$4,$5)',[crypto.randomUUID(),candidate.id,connection.company_id,store.connectionId,phone]);
+   await tx.pool.query("UPDATE cadence_queue SET status='stopped',reason='Cliente solicitou atendimento humano imediato',updated_at=now() WHERE connection_id=$1 AND phone=$2",[store.connectionId,phone]);
+   await tx.audit('consultant_assigned_immediate',null,{phone,userId:candidate.id});return candidate;
+  });
+ }
  async save(user,body){if(user.role!=='admin')throw fail('Somente administradores configuram o expediente.',403);const data=validateHours(body);await this.store.pool.query('INSERT INTO company_handoff_settings(company_id,data) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET data=excluded.data,updated_at=now()',[user.company_id,data]);await this.store.audit('handoff_hours_configured',user.id,{companyId:user.company_id,enabled:data.enabled});return data;}
  async presence(user,body){if(body.available!==undefined&&typeof body.available!=='boolean')throw fail('Disponibilidade inválida.');const r=await this.store.pool.query('UPDATE users SET handoff_last_seen=$2,handoff_presence_company=$3,handoff_available=COALESCE($4,handoff_available) WHERE id=$1 RETURNING accepts_ai_handoff,handoff_available',[user.id,this.now(),user.company_id,body.available??null]);return r.rows[0];}
  async candidates(tx,company,connection,departmentId=null){
@@ -46,6 +62,6 @@ export class ConsultantRouting{
   });
   return {reply:assigned?'Perfeito! '+(assigned.name||'Um consultor')+' vai continuar seu atendimento por aqui.':'No momento não há um consultor disponível para essa transferência. Posso continuar ajudando por aqui.'};
  }
- async notifications(user,id=null){if(!can(user,'conversations.view'))return [];const rows=(await this.store.pool.query('SELECT id,kind,connection_id,phone,created_at FROM user_notifications WHERE user_id=$1 AND company_id=$2 AND (($3::uuid IS NULL AND read_at IS NULL) OR id=$3::uuid) ORDER BY created_at DESC LIMIT 30',[user.id,user.company_id,id])).rows,visible=[];for(const row of rows){if(row.kind==='waiting_reply'&&!businessOpen({...await this.settings(user.company_id),enabled:true},this.now()))continue;if(user.role!=='admin'&&!user.connections.includes(row.connection_id))continue;const lead=await this.store.scope(row.connection_id).getLead(row.phone);if(!canSeeLead(user,lead))continue;if(row.kind==='new_lead'?(lead?.assignedUserId&&lead.assignedUserId!==user.id&&user.role!=='admin'):lead?.assignedUserId!==user.id)continue;visible.push({...row,name:lead.nome||lead.nomeWhatsApp||'Novo lead',status:lead.status,resultado:lead.resultado,conversationClosed:lead.conversationClosed===true});}return visible;}
+ async notifications(user,id=null){if(!can(user,'conversations.view'))return [];const rows=(await this.store.pool.query('SELECT id,kind,connection_id,phone,created_at FROM user_notifications WHERE user_id=$1 AND company_id=$2 AND (($3::uuid IS NULL AND read_at IS NULL) OR id=$3::uuid) ORDER BY created_at DESC LIMIT 30',[user.id,user.company_id,id])).rows,visible=[];for(const row of rows){if(['sales_priority','sales_overdue'].includes(row.kind)&&user.role!=='admin')continue;if(row.kind==='waiting_reply'&&!businessOpen({...await this.settings(user.company_id),enabled:true},this.now()))continue;if(user.role!=='admin'&&!user.connections.includes(row.connection_id))continue;const lead=await this.store.scope(row.connection_id).getLead(row.phone);if(!canSeeLead(user,lead))continue;if(['new_lead','sales_priority','sales_overdue','product_activity'].includes(row.kind)?(lead?.assignedUserId&&lead.assignedUserId!==user.id&&user.role!=='admin'):lead?.assignedUserId!==user.id)continue;visible.push({...row,name:lead.nome||lead.nomeWhatsApp||'Novo lead',status:lead.status,resultado:lead.resultado,conversationClosed:lead.conversationClosed===true});}return visible;}
  async read(user,id){await this.store.pool.query('UPDATE user_notifications SET read_at=now() WHERE id=$1 AND user_id=$2 AND company_id=$3',[id,user.id,user.company_id]);return {ok:true};}
 }

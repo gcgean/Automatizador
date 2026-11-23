@@ -1,6 +1,11 @@
 export function requestsOptOut(text = '') {
   const value = String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   return /^(?:stop|sair|cancelar|pare|parar|descadastrar)[.!\s]*$/.test(value)
+    || /\bnao (?:quero|desejo|queremos) (?:mais )?(?:receber )?(?:mais )?(?:o |esse |este |nenhum )?acompanhamento\b/.test(value)
+    || /\bnao (?:entre|entrem|entrar) (?:mais )?em contato\b/.test(value)
+    || /\b(?:pare|parem) (?:com |o |de )?(?:esse |este |o )?acompanhamento\b/.test(value)
+    || /\bnao (?:me )?(?:procure|procurem|ligue|liguem)(?: mais)?\b/.test(value)
+    || /\b(?:vou bloquear|nao entre|nao entrem)\b/.test(value) && /\b(?:nao quero|nao pedi|nao (?:estou|to) precisando|nao entre|nao entrem)\b/.test(value)
     || /\bnao (?:me )?(?:incomode|perturbe|chame)(?: mais)?\b/.test(value)
     || /\bnao (?:me )?(?:mande|envie|mandem|enviem) (?:mais )?mensagens\b/.test(value)
     || /\b(?:nao quero|nao desejo) (?:mais )?receber (?:mais )?mensagens\b/.test(value)

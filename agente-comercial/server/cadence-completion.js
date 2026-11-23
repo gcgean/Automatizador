@@ -14,6 +14,7 @@ export async function completeCadences(service){
    const stop=async reason=>tx.pool.query("UPDATE cadence_queue SET status='stopped',reason=$3,updated_at=now() WHERE connection_id=$1 AND phone=$2",[candidate.connection_id,candidate.phone,reason]);
    if(!connection.enabled||!connection.company_active||!settings?.enabled)return;
    if(!service.allowed(l?.data)){await stop('Estado do atendimento mudou; não finalizado automaticamente');return;}
+   if(service.registry.growth&&(await tx.pool.query("SELECT 1 FROM commercial_events WHERE connection_id=$1 AND phone=$2 AND kind IN ('signup_completed','trial_started','activation_completed','subscription_started') LIMIT 1",[candidate.connection_id,candidate.phone])).rowCount){await stop('Cadastro ou uso confirmado; acompanhamento comercial permanece aberto');return;}
    const history=(await cadenceAttemptRecords(tx,candidate.connection_id,[candidate.phone])).filter(a=>a.cycle_id===q.cycle_id),sends=history.filter(attemptedSend),last=sends[0];
    if(q.attempts<settings.max_attempts){await tx.pool.query("UPDATE cadence_queue SET status='waiting',next_at=$3,reason='Limite de tentativas ampliado',updated_at=now() WHERE connection_id=$1 AND phone=$2",[candidate.connection_id,candidate.phone,new Date(service.now().getTime()+86400000)]);return;}
    const response=await tx.pool.query("SELECT 1 FROM messages WHERE connection_id=$1 AND phone=$2 AND direction='in' AND occurred_at>$3 LIMIT 1",[candidate.connection_id,candidate.phone,last?.attempted_at||q.updated_at]);

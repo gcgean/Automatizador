@@ -1,0 +1,24 @@
+const escape=value=>String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const features={
+ nfe:['Emissão de notas de produtos pelo navegador','Cadastros de clientes e produtos','Recursos fiscais sujeitos aos requisitos da empresa'],
+ nfse:['Emissão de notas de serviços','Cadastro de serviços e clientes','Configuração conforme os requisitos fiscais do caso'],
+ nfce:['Emissão de cupom fiscal','Operação de vendas e formas de pagamento','Configuração fiscal e impressão conforme compatibilidade'],
+ pdv:['Operação de vendas no caixa','Produtos e formas de pagamento','Integração com a rotina de estoque'],
+ estoque:['Cadastro de produtos','Entradas, saídas e inventário','Consulta das movimentações'],
+ financeiro:['Contas a pagar e a receber','Acompanhamento de títulos','Relatórios para apoiar a gestão'],
+ erp:['Vendas e frente de caixa','Estoque e financeiro','Emissão fiscal conforme o módulo e a configuração'],
+ oficina:['Ordens de serviço com peças e serviços','Veículos e histórico','Etapas, checklists e faturamento das OS'],
+ contador:['Oferta específica para escritórios contábeis','Gestão das empresas atendidas','Consulte pacotes e condições na página da oferta'],
+ cte:['Conheça a emissão de CT-e','Confira os requisitos com a equipe','Disponibilidade depende de módulo e configuração'],
+ mdfe:['Conheça a emissão de MDF-e','Confira os requisitos com a equipe','Disponibilidade depende de módulo e configuração'],
+ frotas:['Veículos e motoristas','Abastecimentos, despesas e manutenções','Documentos, custos e relatórios'],
+ chat:['Conversas, filas e contatos','Organização dos atendimentos da equipe','Canais e recursos conforme a configuração'],
+ crm:['Leads e oportunidades','Funis, propostas e agenda','Acompanhamento da equipe comercial'],
+ helena:['Atendimento comercial com IA','Transferência para a equipe humana','Cadência e acompanhamento comercial']
+};
+export function commercialPage({product,companyName,phone,ref,related=[]}){
+ const p=product,e=escape;let target=p.trialConfirmed?p.trialUrl:p.salesUrl||'';
+ if(target&&ref&&p.trialConfirmed){const u=new URL(target);u.searchParams.set('commercial_ref',ref);target=u.href;}
+ const contact=/^\d{10,15}$/.test(phone||'')?'https://wa.me/'+phone+'?text='+encodeURIComponent('Olá! Quero conhecer '+p.name+'. Estou na página do produto.'):'';
+ return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>'+e(p.name)+' · '+e(companyName)+'</title><style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;color:#172c4c;background:#f3f7fc;line-height:1.6}header,main,footer{max-width:1050px;margin:auto;padding:24px}header{font-weight:750;color:#175bb6}main{padding-top:56px;padding-bottom:64px}h1{font-size:clamp(2.2rem,6vw,3.8rem);line-height:1.1;margin:12px 0 24px;max-width:850px}p{max-width:700px;font-size:1.1rem}.eyebrow{font-weight:700;color:#175bb6}ul{padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;list-style:none;margin:40px 0}li{background:white;padding:24px;border:1px solid #d4dfec;border-radius:14px}.actions{display:flex;flex-wrap:wrap;gap:12px;margin:32px 0}a.button{display:inline-block;background:#1763ca;color:white;text-decoration:none;padding:14px 22px;border-radius:9px;font-weight:650}a.secondary{background:white;border:1px solid #1763ca;color:#175bb6}.conditions{background:white;padding:24px;border-radius:12px;border:1px solid #d4dfec}.conditions p{font-size:1rem}footer{font-size:.9rem;border-top:1px solid #d4dfec}a:focus-visible{outline:3px solid #ffb600;outline-offset:4px}</style></head><body><header>'+e(companyName)+'</header><main><span class="eyebrow">Conheça a solução</span><h1>'+e(p.name)+'</h1><p>'+e(p.benefit)+'</p><div class="actions">'+(target?'<a class="button" rel="noreferrer" href="'+e(target)+'">'+(p.trialConfirmed?'Começar teste':'Conhecer a oferta')+'</a>':'')+(contact?'<a class="button secondary" rel="noreferrer" href="'+e(contact)+'">Falar com a equipe</a>':'')+'</div><ul>'+(related.length?related.map(r=>'<li><a href="'+e(r.url)+'">'+e(r.name)+'</a></li>').join(''):(features[p.id]||[p.benefit]).filter(Boolean).map(f=>'<li>'+e(f)+'</li>').join(''))+'</ul><section class="conditions"><h2>'+(p.trialConfirmed?'Para começar':'Conheça com a equipe')+'</h2><p>'+e(p.conditions||'A equipe confirma planos, condições e o processo de demonstração para sua necessidade.')+'</p>'+(p.firstStep?'<p>'+e(p.firstStep)+'</p>':'')+(!p.trialConfirmed?'<p>A liberação de teste ou demonstração precisa ser confirmada pela equipe.</p>':'')+'</section></main><footer>'+e(companyName)+' · Recursos e condições dependem do produto, plano e configuração.</footer></body></html>';
+}
