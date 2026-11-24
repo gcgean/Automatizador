@@ -43,6 +43,7 @@ import {ConversationAccess} from './conversation-access.js';
 import {TagService} from './tags.js';
 import {MetaConversions} from './meta-conversions.js';
 import {TextImprover} from './text-improver.js';
+import {HumanFollowup} from './human-followup.js';
 import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
@@ -715,6 +716,9 @@ async function main() {
   const learningTimer=learning?setInterval(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),3600000):null;
   const firstLearning=learning?setTimeout(()=>learning.tick().catch(error=>console.error('[aprendizado]',error.message)),30000):null;
   const callingTimer=calling?setInterval(()=>calling.sweep().catch(()=>console.error('[chamadas] Falha na conferência de ligações.')),5000):null;
+  const humanFollowup=registry&&!config.panelOnly?new HumanFollowup(store,registry,{cadence}):null;
+  if(humanFollowup)await humanFollowup.init();
+  const humanFollowupTimer=humanFollowup?setInterval(()=>humanFollowup.tick().catch(()=>console.error('[acompanhamento humano] Falha na varredura.')),300000):null;
   const supportTimer=supportAssist?setInterval(()=>supportAssist.tick().catch(()=>console.error('[apoio] Falha na varredura.')),60000):null;
   const demonstrationTimer=registry&&!config.panelOnly?setInterval(()=>registry.demonstrations.tick().catch(()=>console.error('[demonstrações] Falha ao processar biblioteca.')),15000):null;
   const growthTimer=registry&&!config.panelOnly?setInterval(()=>registry.growth.tick().catch(()=>console.error('[comercial] Falha ao conferir acompanhamento.')),15000):null;
@@ -731,7 +735,7 @@ async function main() {
     if (!config.sellerNumbers.length) console.warn('VENDEDOR_WHATSAPP vazio: os leads encaminhados ficam só em data/leads.json.');
   });
   let stopping=false;
-  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(demonstrationTimer);clearInterval(growthTimer);clearInterval(supportTimer);clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await supportAssist?.close();await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.demonstrations?.running;await registry?.growth?.running;await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
+  const shutdown=()=>{if(stopping)return;stopping=true;clearInterval(demonstrationTimer);clearInterval(growthTimer);clearInterval(supportTimer);clearInterval(humanFollowupTimer);clearInterval(pushTimer);clearInterval(youtubeTimer);clearInterval(metaTimer);clearInterval(callingTimer);clearInterval(learningTimer);clearTimeout(firstLearning);server.close(async()=>{await supportAssist?.close();await reminders?.close();if(registry)await registry.drain();else await inbox.drain();await registry?.demonstrations?.running;await registry?.growth?.running;await registry?.push?.running;await meta?.running;await simulation?.close();await crm?.close();await cadence?.close();await store.monitor?.close();await store.close?.();process.exit(0);});};
   process.on('SIGTERM',shutdown);
   process.on('SIGINT',shutdown);
 }
