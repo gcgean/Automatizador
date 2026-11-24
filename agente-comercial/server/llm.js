@@ -10,7 +10,8 @@ export function providerSettings(name, env = process.env) {
     case 'claude':
       return {name, model: env.CLAUDE_MODEL || 'claude-opus-5-5', effort: env.CLAUDE_EFFORT || 'low', ready: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN)};
     case 'deepseek':
-      return {name, model: env.DEEPSEEK_MODEL || 'deepseek-flash', baseURL: 'https://api.deepseek.com', key: env.DEEPSEEK_API_KEY || '', ready: Boolean(env.DEEPSEEK_API_KEY)};
+      // DEEPSEEK_THINKING=disabled desliga o raciocínio em todas as chamadas (respostas mais rápidas no V4 Pro).
+      return {name, model: env.DEEPSEEK_MODEL || 'deepseek-flash', baseURL: 'https://api.deepseek.com', key: env.DEEPSEEK_API_KEY || '', ready: Boolean(env.DEEPSEEK_API_KEY), thinking: env.DEEPSEEK_THINKING === 'disabled' ? 'disabled' : 'default'};
     case 'ollama':
       return {name, model: env.OLLAMA_MODEL || 'qwen2.5:7b', baseURL: (env.OLLAMA_BASE_URL || 'http://localhost:11434/v1').replace(/\/+$/, ''), key: '', ready: true};
     case 'openai':
@@ -92,7 +93,7 @@ class OpenAICompatibleProvider {
         tool_choice: 'auto',
         temperature: 0.4,
         ...(maxTokens?{max_tokens:maxTokens}:{}),
-        ...(directAnswer&&this.name==='deepseek'?{thinking:{type:'disabled'}}:{}),
+        ...((directAnswer||this.settings.thinking==='disabled')&&this.name==='deepseek'?{thinking:{type:'disabled'}}:{}),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
