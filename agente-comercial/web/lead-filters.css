@@ -1,0 +1,20 @@
+/* Botão "Filtros" ao lado da busca; os filtros só aparecem quando abertos. O painel não cria caixa própria (display:contents) para manter o layout atual dos filtros. */
+.lead-filter-panel{display:contents}
+.lead-list .lead-search-row{display:flex;align-items:stretch;gap:6px;margin:10px 10px 8px;flex-shrink:0;min-width:0}
+.lead-list .lead-search-row .search{margin:0;flex:1 1 auto;min-width:0}
+.lead-filter-toggle{position:relative;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:0 10px;min-height:34px;border:1px solid #bccbdc;border-radius:7px;background:#fff;color:#4a5d78;font-size:12px;font-weight:600;cursor:pointer}
+.lead-filter-toggle:hover{border-color:#0075fa;color:#0075fa}
+.lead-filter-toggle.open,.lead-filter-toggle.has-active{border-color:#0075fa;color:#0075fa;background:#eef5ff}
+.lead-filter-count{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#0075fa;color:#fff;font-size:10px;font-weight:700;line-height:1}
+.lead-filter-clear{margin:0 10px 8px;padding:4px 8px;min-height:0;border:0;background:none;color:#0075fa;font-size:11px;text-decoration:underline;cursor:pointer;justify-self:start;align-self:flex-start}
+.lead-list .lead-filter-panel .tag-filter{margin-top:0;margin-bottom:6px}
+.lead-list .lead-filter-panel .lead-filters{margin-bottom:6px}
+html[data-theme=dark] .lead-filter-toggle,.chat-dark .lead-filter-toggle{background:#202c33;border-color:#3b4a54;color:#aebac1}
+html[data-theme=dark] .lead-filter-toggle.open,html[data-theme=dark] .lead-filter-toggle.has-active,.chat-dark .lead-filter-toggle.open,.chat-dark .lead-filter-toggle.has-active{background:#0b2a45;border-color:#3d8bfd;color:#8ab8ff}
+html[data-theme=dark] .lead-filter-clear{color:#8ab8ff}
+/* Modo cards: a busca e o botão seguem na mesma faixa da barra. */
+.cards-columns .lead-toolbar .lead-search-row{order:2;display:flex;gap:6px;flex:1 1 220px;margin:0;min-width:0}
+.cards-columns .lead-toolbar .lead-search-row .search{flex:1 1 auto;margin:0;max-width:none}
+.cards-columns .lead-toolbar .lead-filter-toggle{min-height:30px;height:30px;font-size:11px;padding:0 8px}
+.cards-columns .lead-toolbar .lead-filter-clear{order:4;margin:0}
+@media (max-width:380px){.lead-filter-label{display:none}}
