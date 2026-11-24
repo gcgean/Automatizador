@@ -45,4 +45,7 @@ test('abertura: melhora a primeira mensagem sem exigir conversa, com limite e se
  assert.equal(result.text,'Mensagem revisada.');assert.deepEqual(f.calls[0].args.tools,[]);const input=JSON.parse(f.calls[0].args.messages[0].content);assert.equal(input.rascunho,'oi tudo bem quero falar do sistema pra oficina');assert.equal(input.objetivoDoContato,'oficina');assert.match(f.calls[0].args.system,/primeira mensagem/);
  for(const body of [{text:'',mode:'natural'},{text:'x'.repeat(1001),mode:'natural'},{text:'oi',mode:'outro'},{text:'oi',mode:'short',purpose:'x'.repeat(501)}])await assert.rejects(f.improver.improveOpening('default',body,alice),{status:400});
  const g=fixture(async()=>({text:'x'.repeat(1001)}));await assert.rejects(g.improver.improveOpening('default',{text:'oi',mode:'short'},alice),{status:502});
+ assert.doesNotMatch(f.calls[0].args.system,/não cumprimente/);
+ const h=fixture(async()=>({text:'Vi que você procura sistema.\n\nPosso mostrar?'}));const inside=await h.improver.improveOpening('default',{text:'oi',mode:'natural',format:'template'},alice);assert.equal(inside.text,'Vi que você procura sistema. Posso mostrar?');assert.match(h.calls[0].args.system,/não cumprimente/);
+ await assert.rejects(h.improver.improveOpening('default',{text:'oi',mode:'natural',format:'outro'},alice),{status:400});
 });

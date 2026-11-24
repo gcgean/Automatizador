@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import crypto from 'node:crypto';import {Pool} from 'pg';import {fileURLToPath} from 'node:url';
-import {PgStore} from '../server/pg-store.js';import {PasswordAuth} from '../server/auth.js';import {loadConfig} from '../server/config.js';import {ConnectionRegistry} from '../server/connections.js';import {CadenceService} from '../server/cadence.js';import {Reengagement} from '../server/reengagement.js';import {TicketOpening,chooseOpeningTemplate,customOpeningTemplate,singleLine} from '../server/ticket-opening.js';import {describeTemplate} from '../server/message-templates.js';
+import {PgStore} from '../server/pg-store.js';import {PasswordAuth} from '../server/auth.js';import {loadConfig} from '../server/config.js';import {ConnectionRegistry} from '../server/connections.js';import {CadenceService} from '../server/cadence.js';import {Reengagement} from '../server/reengagement.js';import {TicketOpening,chooseOpeningTemplate,customOpeningTemplate,singleLine,stripGreeting} from '../server/ticket-opening.js';import {describeTemplate} from '../server/message-templates.js';
 test('escolha exclui utilidade, despedida e modelos de retomada para contato novo',()=>{
  const t=(name,body,category='MARKETING')=>describeTemplate({name,language:'pt_BR',category,components:[{type:'BODY',text:body}]});
  const templates=[t('bye','Olá, vamos encerrar por enquanto.'),t('invoice','Olá, pagamento confirmado.','UTILITY'),t('return','Olá, podemos retomar nossa conversa?'),t('hello','Olá! Quer conhecer nosso sistema?')];
@@ -15,6 +15,12 @@ test('modelo de texto livre: só o nome combinado, com um campo no corpo, e text
  assert.equal(customOpeningTemplate([t('outro','Olá! {{1}}'),ok]),ok);
  assert.equal(customOpeningTemplate([t('abertura_personalizada_v1','Olá {{1}}, {{2}}')]),null);
  assert.equal(customOpeningTemplate([ok],'en_US'),null);
+ assert.equal(stripGreeting('Olá, tudo bem? Aqui é da Command System. Vi que você procura sistema para oficina.'),'Vi que você procura sistema para oficina.');
+ assert.equal(stripGreeting('Oi! Tudo bem? sou da equipe comercial da Cilos. quer conhecer o CRM?'),'Quer conhecer o CRM?');
+ assert.equal(stripGreeting('Boa tarde, João! Posso te mostrar o sistema?'),'Posso te mostrar o sistema?');
+ assert.equal(stripGreeting('Olá, recebi seu pedido de orçamento da oficina do centro e quero ajudar. Podemos falar?'),'Olá, recebi seu pedido de orçamento da oficina do centro e quero ajudar. Podemos falar?');
+ assert.equal(stripGreeting('Oi tudo bem vi que vc quer sistema pra oficina'),'Oi tudo bem vi que vc quer sistema pra oficina');
+ assert.equal(stripGreeting('Olá!'),'Olá!');
  assert.equal(singleLine('Oi!\n\nTudo bem?\t Posso   ajudar?'),'Oi! Tudo bem? Posso ajudar?');
 });
 test('abertura: prévia não grava, autorização, fila única, recusa e IA aguardando resposta',{skip:!process.env.TEST_DATABASE_URL},async()=>{
@@ -37,8 +43,8 @@ test('abertura: prévia não grava, autorização, fila única, recusa e IA agua
  const talkPreview=await opening.preview(talkInput,actor);assert.equal(talkPreview.windowOpen,true);assert.equal(talkPreview.sendsText,true);
  const talked=await opening.start(talkInput,actor);assert.equal(talked.sentText,true);await (await registry.runtime('default')).inbox.drain();assert.equal(sent.length,2);assert.equal(sent[1].type,'text');assert.equal(sent[1].text.body,'Olá! Vi que você quer o sistema para oficina. Posso ajudar?');
  const freePhone='5511999900822',freeInput={...input,phone:freePhone,message:'Oi!\nQuer ver o sistema para oficina?',requestId:crypto.randomUUID()};
- const freePreview=await opening.preview(freeInput,actor);assert.equal(freePreview.custom,true);assert.equal(freePreview.template.name,'abertura_personalizada_v1');assert.equal(freePreview.template.body,'Olá! Oi! Quer ver o sistema para oficina? Se preferir não receber contato, é só avisar.');
- await opening.start({...freeInput,consentConfirmed:true,fingerprint:freePreview.template.fingerprint},actor);await (await registry.runtime('default')).inbox.drain();assert.equal(sent.length,3);assert.equal(sent[2].template.name,'abertura_personalizada_v1');assert.equal(sent[2].template.components[0].parameters[0].text,'Oi! Quer ver o sistema para oficina?');
+ const freePreview=await opening.preview(freeInput,actor);assert.equal(freePreview.custom,true);assert.equal(freePreview.template.name,'abertura_personalizada_v1');assert.equal(freePreview.template.body,'Olá! Quer ver o sistema para oficina? Se preferir não receber contato, é só avisar.');
+ await opening.start({...freeInput,consentConfirmed:true,fingerprint:freePreview.template.fingerprint},actor);await (await registry.runtime('default')).inbox.drain();assert.equal(sent.length,3);assert.equal(sent[2].template.name,'abertura_personalizada_v1');assert.equal(sent[2].template.components[0].parameters[0].text,'Quer ver o sistema para oficina?');
  await assert.rejects(opening.preview({...input,message:'x'.repeat(1001)},actor),/1\.000/);
  }finally{await store.close();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
 });

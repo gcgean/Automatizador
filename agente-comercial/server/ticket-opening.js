@@ -11,6 +11,13 @@ export const CUSTOM_OPENING_TEMPLATE='abertura_personalizada_v1';
 export function customOpeningTemplate(templates,language='pt_BR'){return templates.find(t=>t.name===CUSTOM_OPENING_TEMPLATE&&t.supported&&t.language===language&&!t.header&&t.fields.length===1&&t.fields[0].id==='body:1')||null;}
 // Variável de modelo não aceita quebra de linha nem tabulação; vira uma linha só.
 export const singleLine=text=>String(text||'').replace(/\s*[\r\n\t]+\s*/g,' ').replace(/ {2,}/g,' ').trim();
+// O modelo de texto livre já cumprimenta e apresenta a empresa; tira do começo do texto digitado só frases que repetiriam isso.
+const GREETING=[/^(?:ol[aá]|oi+|opa|e a[ií]|bom dia|boa tarde|boa noite)(?!\p{L})[\p{L}\s,]{0,40}$/iu,/^(?:tudo bem|tudo bom|tudo certo|como vai|como voc[eê] est[aá])(?!\p{L})[\p{L}\s,]{0,25}$/iu,/^(?:aqui [eé]|sou|falo)\s+(?:d[aoe]s?\s+)?(?:equipe\s+(?:comercial\s+)?(?:d[aoe]\s+)?)?(?:a\s+|o\s+)?(?:command|cilos)(?!\p{L})[\p{L}\s]{0,30}$/iu];
+export function stripGreeting(text){
+ let rest=String(text||'').trim();
+ for(let i=0;i<4;i++){const m=rest.match(/^([^.!?]{1,80}?)[.!?]+\s*/u);if(!m||!GREETING.some(re=>re.test(m[1].trim())))break;rest=rest.slice(m[0].length);}
+ rest=rest.trim();return rest?rest.charAt(0).toUpperCase()+rest.slice(1):String(text||'').trim();
+}
 const normalized=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 export function chooseOpeningTemplate(templates,settings,context,{hasHistory=false}={}){
  const topics=[/oficina|ordens? de servico/,/loja|varej|frente de caixa|pdv/,/nf[ -]?e|nota fiscal de produto/,/nfs[ -]?e|nota fiscal de servico/,/contador|contabil/,/frota/,/estoque/],wanted=normalized(context);
@@ -40,7 +47,7 @@ export class TicketOpening{
   if(events.some(e=>e.direction==='out'&&e.automaticTemplate&&Date.now()-Date.parse(e.at)<86400000))throw fail('Um modelo automático já foi enviado. Aguarde a resposta do cliente.');
   if(Object.values(runtime.inbox.jobs).some(j=>j.message.from===target&&j.message.reengagement&&['queued','processing','attention'].includes(j.status)))throw fail('Já existe um modelo pendente para este contato.');
   const catalog=await this.reengagement.catalog.list(id),settings=await this.cadence.settings(id);
-  if(message){const custom=customOpeningTemplate(catalog,settings.language||'pt_BR');if(custom){result.template=custom;result.custom=singleLine(message);return result;}result.customUnavailable=true;}
+  if(message){const custom=customOpeningTemplate(catalog,settings.language||'pt_BR');if(custom){result.template=custom;result.custom=stripGreeting(singleLine(message));return result;}result.customUnavailable=true;}
   const context=[message,body.purpose,lead?.produtos_interesse,lead?.dor_principal,...events.filter(e=>e.direction==='in').slice(-2).map(e=>e.text)].filter(Boolean).join(' ').slice(0,2000);
   result.template=chooseOpeningTemplate(catalog,settings,context,{hasHistory:events.some(e=>e.direction==='in')});
   if(!result.template)throw fail('Nenhum modelo aprovado compatível com esta abertura. Abra sem enviar ou confira os modelos na conversa.');
