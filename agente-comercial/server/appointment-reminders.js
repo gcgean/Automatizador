@@ -40,7 +40,7 @@ export class AppointmentReminders{
    if(changed.rowCount)await this.store.scope(s.connection_id).audit('appointment_reminders_auto_activated',null,{minutesBefore:30});
   }}catch{this.log.error('[lembretes] Não foi possível conferir a aprovação de um modelo pendente.');}
   // Schedule only reservations already confirmed by the integration. Never import unrelated agenda entries.
-  const bookings=(await this.store.pool.query(`SELECT b.* FROM agenda_bookings b JOIN whatsapp_connections c ON c.id=b.connection_id JOIN companies e ON e.id=c.company_id JOIN appointment_reminder_settings s ON s.connection_id=c.id WHERE b.status='confirmed' AND b.cancellation_requested_at IS NULL AND s.enabled AND c.enabled AND e.active AND NOT EXISTS(SELECT 1 FROM appointment_reminders r WHERE r.booking_id=b.id) AND ((b.option_data->>'data')::date+(b.option_data->>'horaInicio')::time) AT TIME ZONE 'America/Sao_Paulo'>$1 ORDER BY b.created_at LIMIT 100`,[this.now()])).rows;
+  const bookings=(await this.store.pool.query(`SELECT b.* FROM agenda_bookings b JOIN whatsapp_connections c ON c.id=b.connection_id JOIN companies e ON e.id=c.company_id JOIN appointment_reminder_settings s ON s.connection_id=c.id WHERE b.status='confirmed' AND b.cancellation_requested_at IS NULL AND b.reschedule_requested_at IS NULL AND s.enabled AND c.enabled AND e.active AND NOT EXISTS(SELECT 1 FROM appointment_reminders r WHERE r.booking_id=b.id) AND ((b.option_data->>'data')::date+(b.option_data->>'horaInicio')::time) AT TIME ZONE 'America/Sao_Paulo'>$1 ORDER BY b.created_at LIMIT 100`,[this.now()])).rows;
   for(const b of bookings){const at=appointmentTime(b.option_data),due=new Date(at.getTime()-30*60000);await this.store.pool.query(`INSERT INTO appointment_reminders(id,booking_id,connection_id,phone,appointment_at,due_at,next_check_at) VALUES($1,$2,$3,$4,$5,$6,$6) ON CONFLICT(booking_id) DO NOTHING`,[crypto.randomUUID(),b.id,b.connection_id,b.phone,at,due]);}
   const rows=(await this.store.pool.query("SELECT id,connection_id,phone FROM appointment_reminders WHERE status='pending' AND next_check_at<=$1 ORDER BY next_check_at LIMIT 30",[this.now()])).rows;
   for(const r of rows){const runtime=await this.registry.runtime(r.connection_id);await runtime.agent.enqueue({id:'appointment-reminder-'+r.id,from:r.phone,appointmentReminder:{id:r.id}});}
@@ -54,7 +54,7 @@ export class AppointmentReminders{
    if(this.now().getTime()>new Date(row.due_at).getTime()+5*60000||this.now()>=new Date(row.appointment_at))return skip('Horário do lembrete ultrapassado. Não enviar aviso atrasado.');
    const settings=await this.settings(row.connection_id),connection=await this.store.getConnection(row.connection_id),lead=await agent.store.getLead(phone);
    if(!settings.enabled||!connection.enabled||!connection.company_active||!lead||lead.optedOut||lead.resultado==='perdido')return skip('Lembrete desativado, empresa/conexão pausada ou contato bloqueado.');
-   const booking=(await this.store.pool.query("SELECT * FROM agenda_bookings WHERE id=$1 AND connection_id=$2 AND phone=$3 AND status='confirmed' AND cancellation_requested_at IS NULL",[row.booking_id,row.connection_id,phone])).rows[0];
+   const booking=(await this.store.pool.query("SELECT * FROM agenda_bookings WHERE id=$1 AND connection_id=$2 AND phone=$3 AND status='confirmed' AND cancellation_requested_at IS NULL AND reschedule_requested_at IS NULL",[row.booking_id,row.connection_id,phone])).rows[0];
    const agendaSettings=await this.agenda.settings(row.connection_id);
    if(!booking||!agendaSettings.enabled)return skip('Reserva não confirmada ou agenda desativada.');
    const remote=(await this.agenda.call(agendaSettings,'/agendamentos/'+booking.remote_id)).data;
@@ -64,8 +64,8 @@ export class AppointmentReminders{
    const events=await agent.store.getEvents(phone),last=events.filter(e=>e.direction==='in').at(-1),inWindow=last&&this.now()-new Date(last.at)<86400000&&this.now()>=new Date(last.at);
    if(!inWindow&&!await this.approvedTemplate(row.connection_id,settings))return skip('Modelo de lembrete não está aprovado para envio fora da janela de atendimento.');
    const fresh=await agent.store.getLead(phone),cfg=await this.registry.configFor(row.connection_id),freshSettings=await this.settings(row.connection_id);
-   const cancellation=(await this.store.pool.query('SELECT cancellation_requested_at FROM agenda_bookings WHERE id=$1',[row.booking_id])).rows[0]?.cancellation_requested_at;
-   if(cancellation||!fresh||fresh.optedOut||fresh.resultado==='perdido'||!cfg.enabled||!freshSettings.enabled)return skip('Estado do contato, conexão ou lembrete mudou antes do envio.');
+   const cancellation=(await this.store.pool.query('SELECT cancellation_requested_at,reschedule_requested_at FROM agenda_bookings WHERE id=$1',[row.booking_id])).rows[0];
+   if(cancellation?.cancellation_requested_at||cancellation?.reschedule_requested_at||!fresh||fresh.optedOut||fresh.resultado==='perdido'||!cfg.enabled||!freshSettings.enabled)return skip('Estado do contato, conexão ou lembrete mudou antes do envio.');
    if(this.now().getTime()>new Date(row.due_at).getTime()+5*60000)return skip('Horário do lembrete ultrapassado durante a conferência.');
    const date=reminderDate(booking.option_data),time=booking.option_data.horaInicio,text=REMINDER_BODY.replace('{{1}}',date).replace('{{2}}',time),metadata={actor:'ai',provider:'agenda-reminder',appointmentReminderId:id};
    await this.state(id,'sending','Envio iniciado.');sending=true;

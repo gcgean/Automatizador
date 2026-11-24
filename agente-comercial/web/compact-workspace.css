@@ -1,0 +1,51 @@
+/* Keep everyday navigation and the active conversation within the viewport. */
+.header-more{display:none;position:relative;flex-shrink:0}
+.header-more-options{position:absolute;top:calc(100% + 8px);right:0;z-index:100;min-width:180px;display:grid;gap:4px;padding:6px;background:var(--ui-surface,#fff);border:1px solid var(--ui-border,#c6d2e2);border-radius:9px;box-shadow:0 8px 24px #10234420}
+.app-header .header-more-options button{width:100%;justify-content:flex-start;min-height:36px}
+
+@media(min-width:1200px){
+ .app-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;height:54px;min-height:54px;padding:6px 10px;gap:8px;flex-wrap:nowrap}
+ .app-header .brand{font-size:14px;gap:6px}
+ .app-header .brand img{width:30px;height:30px}
+ .app-header .view-tabs{display:flex;flex:initial;min-width:0;margin:0;gap:3px;flex-wrap:nowrap;justify-content:center}
+ .app-header .view-tabs>button,.app-header .header-more>button{height:32px;min-height:32px;padding:5px 7px;font-size:11px;gap:4px}
+ .app-header .view-tabs>.header-secondary{display:none}
+ .app-header .header-more{display:block}
+ .app-header .header-connection{flex-basis:auto;gap:6px;order:initial;justify-content:flex-end}
+ .app-header .header-connection select{width:150px;max-width:150px;height:30px}
+ .app-header .company-selector label{font-size:0;gap:0}
+ .app-header .company-selector select{font-size:11px}
+ .app-header .connection-filter-trigger{max-width:160px;min-height:30px;padding:5px 7px;font-size:11px;gap:5px}
+ .app-header .connection-filter-trigger>span:not(.connection-filter-dots){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .app-header .header-connection .connection-status{font-size:0;gap:0}
+ .app-header .theme-toggle{height:30px;padding:5px 6px}
+ .app-header>.controls{gap:3px;order:initial}
+ .app-header .logged-user>span:last-child{display:none}
+ .app-header>.controls>.icon-button{width:30px;min-width:30px;min-height:30px;padding:5px}
+}
+@media(min-width:701px){
+ .workspace.inbox-workspace{padding:6px 10px}
+ .cards-columns .lead-toolbar{padding:6px 8px;gap:6px;align-items:center}
+ .cards-columns .lead-toolbar>.list-title{display:contents}
+ .cards-columns .list-title h2{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .cards-columns .lead-toolbar .contact-groups{order:0;gap:4px}
+ .cards-columns .lead-toolbar .new-ticket-launch{order:1;margin-left:auto;padding:5px 9px;min-height:30px;height:30px;font-size:11px}
+ .cards-columns .lead-toolbar .search{order:2;flex:1 1 190px;max-width:none;height:30px}
+ .cards-columns .lead-toolbar .search input{padding:5px 4px;font-size:11px}
+ .cards-columns .lead-toolbar .lead-filters{order:3}
+ .cards-columns .lead-toolbar .tag-filter{order:4}
+ .cards-columns .lead-toolbar .cards-chat-toggle{order:5}
+ .cards-columns .lead-toolbar .contact-groups button{min-height:30px;padding:5px 7px}
+ .inbox-workspace .detail-head{min-height:64px;padding:6px 10px;gap:6px}
+ .detail-head .contact-heading{gap:7px}
+ .detail-head .contact-name{margin:0;line-height:1.25}
+ .detail-head .contact-name-button{padding:0;min-height:0;font:inherit;line-height:inherit}
+ .detail-head .avatar-button{padding:0;flex-shrink:0}
+ .detail-head .avatar-button .contact-avatar{width:36px;height:36px;min-width:36px}
+ .detail-head .chat-status-sector{margin-top:1px;gap:5px}
+ .detail-head .chat-status-sector>div{margin-top:0!important}
+ .detail-head .detail-connection{gap:5px;margin-top:2px}
+ .detail-head .detail-connection p{margin:0;line-height:1.3}
+ .detail-head .controls button{min-width:30px;min-height:30px;padding:6px}
+ .detail-head .controls{gap:3px}
+}

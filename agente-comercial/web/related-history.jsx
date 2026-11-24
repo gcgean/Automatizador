@@ -1,0 +1,13 @@
+import React,{useEffect,useRef,useState} from 'react';
+import {request} from './account.jsx';
+import {scoped} from './manage.jsx';
+import {AttachmentView} from './media.jsx';
+import './related-history.css';
+export function RelatedHistory({phone,connectionId}){
+ const [sources,setSources]=useState([]),[opened,setOpened]=useState(false),[selected,setSelected]=useState(''),[history,setHistory]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),dialog=useRef(null);
+ useEffect(()=>{let alive=true;setSources([]);setOpened(false);setSelected('');setHistory(null);request(scoped('/conversations/'+phone+'/related-history',connectionId)).then(data=>{if(alive)setSources(data.sources);}).catch(()=>{});return()=>{alive=false;};},[phone,connectionId]);
+ useEffect(()=>{if(opened)dialog.current?.showModal();else dialog.current?.close();},[opened]);
+ useEffect(()=>{let alive=true;setHistory(null);setError('');if(!opened||!selected)return;setBusy(true);request(scoped('/conversations/'+phone+'/related-history?source='+encodeURIComponent(selected),connectionId)).then(data=>{if(alive)setHistory(data);}).catch(e=>{if(alive)setError(e.message);}).finally(()=>{if(alive)setBusy(false);});return()=>{alive=false;};},[opened,selected,phone,connectionId]);
+ if(!sources.length)return null;
+ return <div className="related-history"><button type="button" className="secondary" onClick={()=>{setSelected(sources[0].id);setOpened(true);}}>Histórico adicional ({sources.reduce((n,s)=>n+s.total,0)})</button><dialog ref={dialog} className="related-history-dialog" onCancel={event=>{event.preventDefault();setOpened(false);}}><header><h2>Histórico adicional deste contato</h2><button type="button" className="secondary" onClick={()=>setOpened(false)}>Fechar</button></header><p>Mensagens de outro número ou de um formato antigo do telefone. Consulta somente para leitura; as respostas continuam no número do atendimento atual.</p><label>Número de origem<select value={selected} onChange={event=>setSelected(event.target.value)}>{sources.map(source=><option key={source.id} value={source.id}>{source.name} · {source.displayPhone} · {source.total} mensagens</option>)}</select></label>{busy?<p role="status">Carregando histórico…</p>:error?<p role="alert">{error}</p>:history&&<div className="related-history-events">{history.events.map(event=><article key={event.id} className={'history-event '+event.direction}><strong>{event.direction==='in'?'Cliente':'Equipe'}</strong><time>{new Date(event.at).toLocaleString('pt-BR')}</time><div>{event.text}</div>{event.attachment&&<AttachmentView attachment={event.attachment} connectionId={history.id}/>}</article>)}</div>}</dialog></div>;
+}

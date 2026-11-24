@@ -20,6 +20,8 @@ test('recusa de acompanhamento, intenção imediata e classificação sem inferi
  assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'NFS-e'},[]).id,'nfse');
  assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'contador e NFS-e'},[]).id,'contador');
  assert.equal(chooseProduct(PRODUCT_SEEDS,{},[]),null);
+ assert.equal(chooseProduct(PRODUCT_SEEDS,{segmento:'Oficina mecânica',produtos_interesse:'estoque'},[]).id,'oficina');
+ assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'oficina e NF-e'},[]).id,'oficina');
  assert.throws(()=>safeProductUrl('https://127.0.0.1/'));
  assert.throws(()=>validateProduct({id:'teste',name:'Teste',tags:[],trialConfirmed:true}));
 });

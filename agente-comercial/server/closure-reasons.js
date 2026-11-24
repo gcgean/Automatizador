@@ -1,3 +1,4 @@
+import {visibilitySQL} from './conversation-access.js';
 import crypto from 'node:crypto';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,13 +57,33 @@ export class ClosureReasons{
   return this.list(companyId,true);
  }
  // Chamados finalizados no período, por motivo. Um chamado com dois motivos conta em cada um deles.
- async report(connectionIds,from,to){
+ async report(connectionIds,from,to,{departmentId=null,userId=null,includeDetails=false,page=1,viewer=null}={}){
+  if(departmentId&&!UUID.test(departmentId)||userId&&!UUID.test(userId)||!Number.isInteger(page)||page<1||page>100000)throw fail('Filtro de finalização inválido.');
+  const params=[connectionIds,from,to,departmentId,userId];
   const [{rows},{rows:[totals]}]=await Promise.all([
    this.pool.query(`SELECT r.id,r.name,r.system_key,count(DISTINCT t.id)::int AS total FROM service_tickets t JOIN ticket_closure_reasons x ON x.ticket_id=t.id JOIN closure_reasons r ON r.id=x.reason_id
-    WHERE t.connection_id=ANY($1) AND t.closed_at>=$2 AND t.closed_at<$3 GROUP BY r.id,r.name,r.system_key ORDER BY total DESC,lower(r.name)`,[connectionIds,from,to]),
+    WHERE t.connection_id=ANY($1) AND t.closed_at>=$2 AND t.closed_at<$3 AND ($4::uuid IS NULL OR t.department_id=$4) AND ($5::uuid IS NULL OR t.assigned_user_id=$5) GROUP BY r.id,r.name,r.system_key ORDER BY total DESC,lower(r.name)`,params),
    this.pool.query(`SELECT count(*)::int AS closed,count(*) FILTER(WHERE NOT EXISTS(SELECT 1 FROM ticket_closure_reasons x WHERE x.ticket_id=t.id))::int AS without_reason
-    FROM service_tickets t WHERE t.connection_id=ANY($1) AND t.closed_at>=$2 AND t.closed_at<$3`,[connectionIds,from,to])]);
-  return {closed:totals.closed,withoutReason:totals.without_reason,reasons:rows.map(r=>({id:r.id,name:r.name,system:!!r.system_key,total:r.total}))};
+    FROM service_tickets t WHERE t.connection_id=ANY($1) AND t.closed_at>=$2 AND t.closed_at<$3 AND ($4::uuid IS NULL OR t.department_id=$4) AND ($5::uuid IS NULL OR t.assigned_user_id=$5)`,params)]);
+  const result={closed:totals.closed,withoutReason:totals.without_reason,reasons:rows.map(r=>({id:r.id,name:r.name,system:!!r.system_key,total:r.total}))};
+  if(!includeDetails)return result;
+  const pageSize=50,viewerId=viewer&&viewer.role!=='admin'?viewer.id:null;
+  const details=(await this.pool.query(`SELECT t.id AS "ticketId",t.connection_id AS "connectionId",t.closed_at AS "closedAt",t.phone,
+   c.name AS "connectionName",d.name AS "departmentName",COALESCE(NULLIF(t.snapshot->>'nome',''),NULLIF(t.snapshot->>'nomeWhatsApp',''),t.phone) AS name,
+   t.snapshot->>'conversationClosedByName' AS "closedBy",t.snapshot->>'assignedUserName' AS "assignedUserName",
+   CASE WHEN jsonb_typeof(t.snapshot->'conversationClosedNote')='string' THEN t.snapshot->>'conversationClosedNote' ELSE '' END AS note,
+   CASE WHEN jsonb_typeof(t.snapshot->'conversationClosureAdId')='string' THEN t.snapshot->>'conversationClosureAdId' ELSE '' END AS "adId",
+   t.snapshot->>'resultado' AS outcome,t.snapshot->>'produtos_interesse' AS product,
+   COALESCE((SELECT json_agg(r.name ORDER BY r.name) FROM ticket_closure_reasons x JOIN closure_reasons r ON r.id=x.reason_id WHERE x.ticket_id=t.id),'[]'::json) AS reasons,
+   (count(*) OVER())::int AS total
+   FROM service_tickets t JOIN whatsapp_connections c ON c.id=t.connection_id LEFT JOIN departments d ON d.id=t.department_id
+   WHERE t.connection_id=ANY($1) AND t.closed_at>=$2 AND t.closed_at<$3
+    AND ($4::uuid IS NULL OR t.department_id=$4) AND ($5::uuid IS NULL OR t.assigned_user_id=$5)
+    AND ($6::text IS NULL OR (${visibilitySQL('t.connection_id','t.phone','$6')}
+      AND (NULLIF(NULLIF(t.snapshot->>'assignedUserId','false'),'') IS NULL OR t.snapshot->>'assignedUserId'=$6)
+      AND (NULLIF(NULLIF(t.snapshot->>'departmentId','false'),'') IS NULL OR EXISTS(SELECT 1 FROM department_users du WHERE du.department_id::text=t.snapshot->>'departmentId' AND du.user_id::text=$6))))
+   ORDER BY t.closed_at DESC,t.id DESC LIMIT $7 OFFSET $8`,[...params,viewerId,pageSize,(page-1)*pageSize])).rows;
+  return {...result,details:details.map(({total,...row})=>row),detailsTotal:details[0]?.total||0,page,pageSize};
  }
 }
 

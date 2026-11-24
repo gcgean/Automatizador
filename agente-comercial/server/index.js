@@ -1,3 +1,5 @@
+import {relatedHistory} from './related-history.js';
+import {TicketOpening} from './ticket-opening.js';
 import {Demonstrations} from './demonstrations.js';
 import fsPromises from 'node:fs/promises';
 import {SupportAssist} from './support-assist.js';
@@ -86,8 +88,16 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         return send(res,405,'Método não permitido.');
       }
 
-      const commercialPage=url.pathname.match(/^\/conhecer\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})$/);
-      if(commercialPage&&req.method==='GET'&&growth){const html=await growth.publicPage(commercialPage[1],commercialPage[2],url.searchParams.get('commercial_ref'));res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});return res.end(html);}
+      if(req.method==='GET'&&url.pathname==='/commercial-page.js'){const script=await fsPromises.readFile(new URL('./commercial-page-client.js',import.meta.url));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','X-Content-Type-Options':'nosniff'});return res.end(script);}
+      const commercialPage=url.pathname.match(/^\/conhecer\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})(\/events)?$/);
+      if(commercialPage&&growth){
+       if(commercialPage[3]&&req.method==='POST'){
+        if(req.headers['sec-fetch-site']==='cross-site'||req.headers.origin&&req.headers.origin!==new URL(config.publicUrl).origin)return send(res,403,'Origem inválida.');
+        return send(res,200,await growth.publicPageEvent(commercialPage[1],commercialPage[2],JSON.parse((await readBody(req,4096)).toString('utf8'))));
+       }
+       if(!commercialPage[3]&&req.method==='GET'){const html=await growth.publicPage(commercialPage[1],commercialPage[2],url.searchParams.get('commercial_ref'),url.searchParams.get('necessidade')||'');res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' https://i.ytimg.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});return res.end(html);}
+       return send(res,405,'Método não permitido.');
+      }
       const tracking=url.pathname.match(/^\/t\/([a-f0-9-]{36})$/i);
       if(tracking&&req.method==='GET'&&growth){const destination=await growth.redirect(tracking[1]);res.writeHead(302,{Location:destination,'Referrer-Policy':'no-referrer','Cache-Control':'no-store'});return res.end();}
       const productEvent=url.pathname.match(/^\/product-events\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})$/);
@@ -216,7 +226,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           if(!can(currentUser,'reports.view'))return send(res,403,'Seu acesso não permite esta função.');
           const {from,to}=reportPeriod(url),asked=(url.searchParams.get('connections')||'').split(',').filter(Boolean);
           const ids=(await registry.list()).filter(c=>c.companyId===companyId&&(administrator||currentUser.connections.includes(c.id))&&asked.includes(c.id)).map(c=>c.id);
-          return send(res,200,await closureReasons.report(ids,from,to));
+          const filters=dashboardFilters(url),page=Number(url.searchParams.get('page')||1);
+          return send(res,200,await closureReasons.report(ids,from,to,{...filters,includeDetails:true,page,viewer:currentUser}));
         }
         if(url.pathname==='/closure-reasons/validated'&&req.method==='POST'){if(!can(currentUser,'closure-reasons.create')||!reasonValidator)return send(res,403,'Seu acesso não permite cadastrar motivos.');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await reasonValidator.create(companyId,body.name));}
         if(!administrator)return send(res,403,'Somente administradores configuram os motivos de finalização.');
@@ -233,6 +244,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(req.method!=='POST')return send(res,405,'Método não permitido.');
         const body=JSON.parse((await readBody(req)).toString());
         if(!available.some(c=>c.id===body.connectionId))return send(res,400,'Escolha um número disponível.');
+        if(['/contacts/open-preview','/contacts/open-and-send'].includes(url.pathname)){if(!reengagement||!cadence)return send(res,503,'Envio por modelo indisponível.');const opening=new TicketOpening(rootStore,registry,reengagement,cadence,auth);return send(res,200,url.pathname==='/contacts/open-preview'?await opening.preview(body,currentUser):await opening.start(body,currentUser));}
         if(url.pathname==='/contacts/save')return send(res,200,await contacts.save(body.connectionId,body,currentUser));
         if(url.pathname==='/contacts/import')return send(res,200,await contacts.import(body.connectionId,body.contacts,currentUser));
         const phone=String(body.phone||'');if(!/^\d{8,40}$/.test(phone))return send(res,400,'Contato inválido.');
@@ -389,7 +401,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           return send(res,200,allowed);
         }
         const conversationState=url.pathname.match(/^\/leads\/(\d+)\/conversation-state$/);
-        if(conversationState&&req.method==='POST'){if(!currentUser)return send(res,401,'unauthorized');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await setConversationClosed(store,conversationState[1],body.closed,currentUser,inbox?.jobs,body.ticketId,body.reasonIds));}
+        if(conversationState&&req.method==='POST'){if(!currentUser)return send(res,401,'unauthorized');const body=JSON.parse((await readBody(req)).toString());return send(res,200,await setConversationClosed(store,conversationState[1],body.closed,currentUser,inbox?.jobs,body.ticketId,body.reasonIds,body.note));}
         const transfer=url.pathname.match(/^\/leads\/(\d+)\/transfer$/);
         if(transfer&&req.method==='POST'){
           const body=JSON.parse((await readBody(req)).toString()),person=/^[-a-f0-9]{36}$/i.test(body.userId||'')?await auth.identity(body.userId):null;
@@ -465,7 +477,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
           if(body.temperatura!==undefined&&!['quente','morno','frio','nao_classificado'].includes(body.temperatura)||body.resultado!==undefined&&!['aberto','apresentacao_solicitada','apresentacao_agendada','ganho','perdido'].includes(body.resultado))return send(res,400,'Classificação inválida.');
           if(body.cadenceConsent!==undefined&&typeof body.cadenceConsent!=='boolean')return send(res,400,'Autorização de acompanhamento inválida.');
           if(crm&&['ganho','perdido'].includes(body.resultado)){const linked=await crm.deals.link(connectionId,leadState[1]);if(linked) return send(res,409,'Confirme o fechamento pelo negócio do CRM, informando valor ou motivo.');}
-          const patch={...(body.cadenceConsent!==undefined?{cadenceConsent:body.cadenceConsent,cadenceConsentSource:'Registrado pelo gestor '+(currentUser?.email||''),...(body.cadenceConsent?{cadenceDeclined:false}:{})}:{}),...(body.temperatura?{temperatura:body.temperatura,motivoTemperatura:'Classificação ajustada pelo operador.'}:{}),...(body.resultado?{resultado:body.resultado}:{})};
+          const patch={...(body.cadenceConsent!==undefined?{cadenceConsent:body.cadenceConsent,cadenceConsentSource:'Registrado pelo gestor '+(currentUser?.email||''),...(body.cadenceConsent?{cadenceDeclined:false,cadenceReviewRequired:false}:{})}:{}),...(body.temperatura?{temperatura:body.temperatura,motivoTemperatura:'Classificação ajustada pelo operador.'}:{}),...(body.resultado?{resultado:body.resultado}:{})};
           if(!Object.keys(patch).length)return send(res,400,'Informe temperatura ou resultado.');
           if(body.resultado)await store.pool.query('INSERT INTO lead_outcomes(connection_id,phone,outcome,user_id) VALUES($1,$2,$3,$4)',[connectionId,leadState[1],body.resultado,currentUser?.id||null]);
           const updated=await store.updateLead(leadState[1],patch);if(cadence){if(['ganho','perdido'].includes(body.resultado)||body.cadenceConsent===false)await cadence.stop(connectionId,leadState[1],'Encerrado ou autorização removida pelo gestor');else if(body.cadenceConsent===true)await cadence.armLatest(connectionId,leadState[1]);}return send(res,200,updated);
@@ -542,6 +554,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         return send(res, 200, lead);
       }
 
+      const relatedRoute=url.pathname.match(/^\/conversations\/(\d+)\/related-history$/);
+      if(relatedRoute&&req.method==='GET'){if(!currentUser||!registry)return send(res,401,'unauthorized');return send(res,200,await relatedHistory(rootStore,registry,currentUser,store.connectionId,relatedRoute[1],url.searchParams.get('source')));}
       const conversationRoute = url.pathname.match(/^\/conversations\/(\d+)$/);
       if (req.method === 'GET' && conversationRoute) {
         if (!authorized()) return send(res, 401, 'unauthorized');
@@ -572,7 +586,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         if(currentLead?.conversationClosed)return send(res,409,'Reabra a conversa antes de enviar mensagens.');
         if (currentLead?.optedOut) return send(res, 409, 'Contato bloqueado por descadastro.');
         const events = await store.getEvents(phone);
-        if (!['instagram','youtube'].includes((await store.getConnection?.())?.channel) && !events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) {if(reengagement&&currentUser)return send(res,202,await reengagement.automatic(connectionId,phone,body,currentUser));return send(res,409,'Retomada automática indisponível nesta conexão.');}
+        if (!['instagram','youtube'].includes((await store.getConnection?.())?.channel) && !events.some(event => event.direction === 'in' && Date.now() - Date.parse(event.at) < 86400000)) {if(reengagement&&currentUser)return send(res,202,await reengagement.automatic(store.connectionId||'default',phone,body,currentUser));return send(res,409,'Retomada automática indisponível nesta conexão.');}
         if(body.sign!==undefined&&typeof body.sign!=='boolean')return send(res,400,'Opção de assinatura inválida.');
         const chooseSignature=!auth||can(currentUser,'signature.choose');
         if(!chooseSignature&&body.sign!==undefined&&body.sign!==currentUser.signature_default)return send(res,403,'Seu grupo não permite alterar a assinatura.');

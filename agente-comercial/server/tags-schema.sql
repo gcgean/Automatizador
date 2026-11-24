@@ -27,3 +27,10 @@ CREATE TABLE IF NOT EXISTS lead_tag_suppressions (
  FOREIGN KEY(connection_id,phone) REFERENCES leads(connection_id,phone) ON DELETE CASCADE,
  FOREIGN KEY(connection_id,tag_id) REFERENCES contact_tags(connection_id,id) ON DELETE CASCADE
 );
+
+DO $$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='lead_tags'::regclass AND conname='lead_tags_source_check' AND pg_get_constraintdef(oid) LIKE '%ai_support%') THEN
+  ALTER TABLE lead_tags DROP CONSTRAINT IF EXISTS lead_tags_source_check;
+  ALTER TABLE lead_tags ADD CONSTRAINT lead_tags_source_check CHECK(source IN ('manual','ai_interest','cadence_no_response','ai_support'));
+ END IF;
+END $$;

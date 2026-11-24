@@ -37,7 +37,7 @@ export async function acceptTicketMessage(tx,phone,messageId,at,source='client')
  if(lead.conversationClosed&&!stale){
   await clearNoResponseTag(tx,phone,lead);
   const departmentId=await defaultConnectionDepartment(tx);
-  await tx.updateLead(phone,{conversationClosed:false,conversationClosedReason:false,conversationReopenedAt:new Date().toISOString(),conversationReopenedBy:source,
+  await tx.updateLead(phone,{conversationClosed:false,conversationClosedReason:false,conversationClosedReasonNames:false,conversationClosedNote:false,conversationClosureAdId:false,conversationReopenedAt:new Date().toISOString(),conversationReopenedBy:source,
    status:lead.optedOut?'bloqueado':source==='whatsapp_app'?'encaminhado':'em_conversa',assignedUserId:false,assignedUserName:false,
    departmentId,humanControlId:crypto.randomUUID(),businessAppControlId:false,
    previousTicketOutcome:lead.resultado||false,resultado:'aberto',consultantOffer:false,consultantLastOfferedAt:false});

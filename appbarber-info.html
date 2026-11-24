@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="theme-color" content="#000000">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    
+
+    
+
+    
+
+    
+      <meta name="twitter:card" content="summary" />
+    
+
+    
+
+    
+      <link rel="canonical" href="https://materiais.appbarber.com.br/api-oficial-appbarber" />
+    
+
+    <title></title>
+
+    
+    <!-- Reset Browser Styles -->
+    <style type="text/css" rel="stylesheet">
+      html, body, div, span, applet, object, iframe,
+      h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+      a, abbr, acronym, address, big, cite, code,
+      del, dfn, em, img, ins, kbd, q, s, samp,
+      small, strike, strong, sub, sup, tt, var,
+      b, u, i, center,
+      dl, dt, dd, ol, ul, li,
+      fieldset, form, label, legend,
+      table, caption, tbody, tfoot, thead, tr, th, td,
+      article, aside, canvas, details, embed,
+      figure, figcaption, footer, header, hgroup,
+      menu, nav, output, ruby, section, summary,
+      time, mark, audio, video {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        font-size: 100%;
+        font: inherit;
+        vertical-align: baseline;
+      }
+
+      article, aside, details, figcaption, figure,
+      footer, header, hgroup, menu, nav, section {
+        display: block;
+      }
+
+      body {
+        line-height: 1;
+      }
+
+      img {
+        vertical-align: middle;
+      }
+
+      ol, ul {
+        list-style: none;
+      }
+
+      blockquote, q {
+        quotes: none;
+      }
+
+      blockquote:before, blockquote:after,
+      q:before, q:after {
+        content: '';
+        content: none;
+      }
+
+      table {
+        border-collapse: collapse;
+        border-spacing: 0;
+      }
+
+      b, strong {
+        font-weight: bold;
+      }
+
+      i, em {
+        font-style: italic;
+      }
+    </style>
+
+    <!-- Bricks Main Styles -->
+    <style type="text/css" rel="stylesheet">
+      * {
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: #FFFFFF;
+        color: #333333;
+        font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+        font-size: 16px;
+        line-height: 1.42857;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        font-family: inherit;
+        font-weight: 500;
+        line-height: 1.2;
+        color: inherit;
+      }
+
+      h1 { font-size: 41px; }
+      h2 { font-size: 34px; }
+      h3 { font-size: 28px; }
+      h4 { font-size: 20px; }
+      h5 { font-size: 16px; }
+      h6 { font-size: 14px; }
+
+      .bricks--page {
+        width: 100%;
+      }
+
+      .bricks--section {
+        width: 100%;
+      }
+
+      .bricks--section > div {
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .bricks--row {
+        display: flex;
+        flex-flow: column nowrap;
+      }
+
+      .bricks--column > div {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .bricks--component-box {
+        display: flex;
+        flex-flow: column nowrap;
+        width: 100%;
+      }
+
+      @media screen and (min-width: 768px) {
+        .bricks--row {
+          flex-flow: row nowrap;
+        }
+      }
+    </style>
+
+    <!-- Bricks Component Form Styles -->
+    <style type="text/css" rel="stylesheet">
+      .bricks-form {
+        height: auto;
+        width: 100%;
+      }
+
+      .bricks-form__fieldset {
+        display: flex;
+        flex-flow: row wrap;
+        margin-left: -5px;
+        margin-right: -5px;
+      }
+
+      .bricks-form__field {
+        display: flex;
+        width: 100%;
+        flex-grow: 1;
+        flex-direction: column;
+      }
+
+      .bricks-form__field--hidden {
+        display: none;
+      }
+
+      .bricks-form__label {
+        position: relative !important;
+        display: inline-block;
+        max-width: 100%;
+        margin-bottom: 0.4em;
+        line-height: 1.25;
+        vertical-align: middle;
+      }
+
+      .bricks-form__input {
+        display: block;
+        width: 100%;
+        padding: 0 0.5em;
+        line-height: 1.42857;
+      }
+
+      .bricks-form__input.error {
+        border: 1px solid red !important;
+      }
+
+      .bricks-form__field__option .bricks-form__label {
+        padding-left: 1.33em;
+        margin-bottom: 0.2em;
+      }
+
+      .bricks-form__field__option .bricks-form__label input[type="checkbox"],
+      .bricks-form__field__option .bricks-form__label input[type="radio"] {
+        margin: 0px 0px 0px -1.33em;
+      }
+
+      .bricks-form__submit {
+        position: relative;
+      }
+    </style>
+
+    <link rel="preload" href="https://fonts.googleapis.com/css?family=Bitter|Cabin|Crimson+Text|Droid+Sans|Droid+Serif|Lato|Lobster|Montserrat|Old+Standard+TT|Open+Sans|Oswald|Pacifico|Playfair+Display|PT+Sans|Raleway|Rubik|Source+Sans+Pro|Ubuntu|Roboto" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/select2/3.5.2/select2.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Bitter|Cabin|Crimson+Text|Droid+Sans|Droid+Serif|Lato|Lobster|Montserrat|Old+Standard+TT|Open+Sans|Oswald|Pacifico|Playfair+Display|PT+Sans|Raleway|Rubik|Source+Sans+Pro|Ubuntu|Roboto">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/3.5.2/select2.min.css">
+    </noscript>
+
+    <!-- Bricks Static Shared Styles -->
+<style type="text/css" rel="stylesheet">
+   .bricks--component-video div {
+    position: relative;
+    height: 0;
+    padding-bottom: 56.25%;
+    line-height: 0;
+    box-sizing: border-box;
+  }
+
+   .bricks--component-video div iframe {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+</style>
+
+    
+
+<!-- Bricks Static Text Styles -->
+<style type="text/css" rel="stylesheet">
+
+   .bricks--component-text {
+    color: #333;
+    line-height: 1.42;
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+
+   .bricks--component-text a {
+    color: #31a2ff;
+    text-decoration: none;
+  }
+
+   .bricks--component-text sub, sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+   .bricks--component-text sub {
+    bottom: -0.25em;
+  }
+
+   .bricks--component-text sup {
+    top: -0.5em;
+  }
+
+   .bricks--component-text ol, 
+   .bricks--component-text ul {
+    padding-left: 1.5em;
+  }
+
+   .bricks--component-text ol > li,
+   .bricks--component-text ul > li {
+    list-style-type: none;
+  }
+
+   .bricks--component-text ul > li::before {
+    content: '\2022';
+  }
+
+   .bricks--component-text li::before {
+    display: inline-block;
+    white-space: nowrap;
+    width: 1.2em;
+  }
+
+   .bricks--component-text li:not(.ql-direction-rtl)::before {
+    margin-left: -1.5em;
+    margin-right: 0.3em;
+    text-align: right;
+  }
+
+   .bricks--component-text li.ql-direction-rtl::before {
+    margin-left: 0.3em;
+    margin-right: -1.5em;
+  }
+
+   .bricks--component-text ol li:not(.ql-direction-rtl),
+   .bricks--component-text ul li:not(.ql-direction-rtl) {
+    padding-left: 1.5em;
+  }
+
+   .bricks--component-text ol li.ql-direction-rtl,
+   .bricks--component-text ul li.ql-direction-rtl {
+    padding-right: 1.5em;
+  }
+
+   .bricks--component-text ol li {
+    counter-reset: list-1 list-2 list-3 list-4 list-5 list-6 list-7 list-8 list-9;
+    counter-increment: list-0;
+  }
+
+   .bricks--component-text ol li:before {
+    content: counter(list-0, decimal) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-1 {
+    counter-increment: list-1;
+  }
+
+   .bricks--component-text ol li.ql-indent-1:before {
+    content: counter(list-1, lower-alpha) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-1 {
+    counter-reset: list-2 list-3 list-4 list-5 list-6 list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-2 {
+    counter-increment: list-2;
+  }
+
+   .bricks--component-text ol li.ql-indent-2:before {
+    content: counter(list-2, lower-roman) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-2 {
+    counter-reset: list-3 list-4 list-5 list-6 list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-3 {
+    counter-increment: list-3;
+  }
+
+   .bricks--component-text ol li.ql-indent-3:before {
+    content: counter(list-3, decimal) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-3 {
+    counter-reset: list-4 list-5 list-6 list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-4 {
+    counter-increment: list-4;
+  }
+
+   .bricks--component-text ol li.ql-indent-4:before {
+    content: counter(list-4, lower-alpha) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-4 {
+    counter-reset: list-5 list-6 list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-5 {
+    counter-increment: list-5;
+  }
+
+   .bricks--component-text ol li.ql-indent-5:before {
+    content: counter(list-5, lower-roman) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-5 {
+    counter-reset: list-6 list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-6 {
+    counter-increment: list-6;
+  }
+
+   .bricks--component-text ol li.ql-indent-6:before {
+    content: counter(list-6, decimal) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-6 {
+    counter-reset: list-7 list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-7 {
+    counter-increment: list-7;
+  }
+
+   .bricks--component-text ol li.ql-indent-7:before {
+    content: counter(list-7, lower-alpha) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-7 {
+    counter-reset: list-8 list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-8 {
+    counter-increment: list-8;
+  }
+
+   .bricks--component-text ol li.ql-indent-8:before {
+    content: counter(list-8, lower-roman) '. ';
+  }
+
+   .bricks--component-text ol li.ql-indent-8 {
+    counter-reset: list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-9 {
+    counter-increment: list-9;
+  }
+
+   .bricks--component-text ol li.ql-indent-9:before {
+    content: counter(list-9, decimal) '. ';
+  }
+
+   .bricks--component-text .ql-indent-1:not(.ql-direction-rtl) {
+    padding-left: 3em;
+  }
+
+   .bricks--component-text li.ql-indent-1:not(.ql-direction-rtl) {
+    padding-left: 4.5em;
+  }
+
+   .bricks--component-text .ql-indent-1.ql-direction-rtl.ql-align-right {
+    padding-right: 3em;
+  }
+
+   .bricks--component-text li.ql-indent-1.ql-direction-rtl.ql-align-right {
+    padding-right: 4.5em;
+  }
+
+   .bricks--component-text .ql-indent-2:not(.ql-direction-rtl) {
+    padding-left: 6em;
+  }
+
+   .bricks--component-text li.ql-indent-2:not(.ql-direction-rtl) {
+    padding-left: 7.5em;
+  }
+
+   .bricks--component-text .ql-indent-2.ql-direction-rtl.ql-align-right {
+    padding-right: 6em;
+  }
+
+   .bricks--component-text li.ql-indent-2.ql-direction-rtl.ql-align-right {
+    padding-right: 7.5em;
+  }
+
+   .bricks--component-text .ql-indent-3:not(.ql-direction-rtl) {
+    padding-left: 9em;
+  }
+
+   .bricks--component-text li.ql-indent-3:not(.ql-direction-rtl) {
+    padding-left: 10.5em;
+  }
+
+   .bricks--component-text .ql-indent-3.ql-direction-rtl.ql-align-right {
+    padding-right: 9em;
+  }
+
+   .bricks--component-text li.ql-indent-3.ql-direction-rtl.ql-align-right {
+    padding-right: 10.5em;
+  }
+
+   .bricks--component-text .ql-indent-4:not(.ql-direction-rtl) {
+    padding-left: 12em;
+  }
+
+   .bricks--component-text li.ql-indent-4:not(.ql-direction-rtl) {
+    padding-left: 13.5em;
+  }
+
+   .bricks--component-text .ql-indent-4.ql-direction-rtl.ql-align-right {
+    padding-right: 12em;
+  }
+
+   .bricks--component-text li.ql-indent-4.ql-direction-rtl.ql-align-right {
+    padding-right: 13.5em;
+  }
+
+   .bricks--component-text .ql-indent-5:not(.ql-direction-rtl) {
+    padding-left: 15em;
+  }
+
+   .bricks--component-text li.ql-indent-5:not(.ql-direction-rtl) {
+    padding-left: 16.5em;
+  }
+
+   .bricks--component-text .ql-indent-5.ql-direction-rtl.ql-align-right {
+    padding-right: 15em;
+  }
+
+   .bricks--component-text li.ql-indent-5.ql-direction-rtl.ql-align-right {
+    padding-right: 16.5em;
+  }
+
+   .bricks--component-text .ql-indent-6:not(.ql-direction-rtl) {
+    padding-left: 18em;
+  }
+
+   .bricks--component-text li.ql-indent-6:not(.ql-direction-rtl) {
+    padding-left: 19.5em;
+  }
+
+   .bricks--component-text .ql-indent-6.ql-direction-rtl.ql-align-right {
+    padding-right: 18em;
+  }
+
+   .bricks--component-text li.ql-indent-6.ql-direction-rtl.ql-align-right {
+    padding-right: 19.5em;
+  }
+
+   .bricks--component-text .ql-indent-7:not(.ql-direction-rtl) {
+    padding-left: 21em;
+  }
+
+   .bricks--component-text li.ql-indent-7:not(.ql-direction-rtl) {
+    padding-left: 22.5em;
+  }
+
+   .bricks--component-text .ql-indent-7.ql-direction-rtl.ql-align-right {
+    padding-right: 21em;
+  }
+
+   .bricks--component-text li.ql-indent-7.ql-direction-rtl.ql-align-right {
+    padding-right: 22.5em;
+  }
+
+   .bricks--component-text .ql-indent-8:not(.ql-direction-rtl) {
+    padding-left: 24em;
+  }
+
+   .bricks--component-text li.ql-indent-8:not(.ql-direction-rtl) {
+    padding-left: 25.5em;
+  }
+
+   .bricks--component-text .ql-indent-8.ql-direction-rtl.ql-align-right {
+    padding-right: 24em;
+  }
+
+   .bricks--component-text li.ql-indent-8.ql-direction-rtl.ql-align-right {
+    padding-right: 25.5em;
+  }
+
+   .bricks--component-text .ql-indent-9:not(.ql-direction-rtl) {
+    padding-left: 27em;
+  }
+
+   .bricks--component-text li.ql-indent-9:not(.ql-direction-rtl) {
+    padding-left: 28.5em;
+  }
+
+   .bricks--component-text .ql-indent-9.ql-direction-rtl.ql-align-right {
+    padding-right: 27em;
+  }
+
+   .bricks--component-text li.ql-indent-9.ql-direction-rtl.ql-align-right {
+    padding-right: 28.5em;
+  }
+
+   .bricks--component-text .ql-direction-rtl {
+    direction: rtl;
+    text-align: inherit;
+  }
+  
+</style>
+
+
+    <!-- Defines page width style to row components -->
+    <style>
+      .bricks--section > div {
+        max-width: 960px;
+      }
+    </style>
+    
+    
+    
+    
+
+    <script type="text/javascript"> </script>
+
+    
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments)};
+      </script>
+    
+
+  </head>
+  <body>
+    
+      
+        <script type="text/javascript">
+          (function() {
+            var scriptId = "ga-gtag";
+
+            if (document.getElementById(scriptId)) return;
+
+            var script = document.createElement("script");
+            var trackingId = "G-4RL2LWTHH8"
+            var lpId = "9241635"
+            var options = { send_page_view: !false }
+
+            script.setAttribute("id", scriptId);
+            script.setAttribute("type", "text/javascript");
+            script.setAttribute(
+              "src",
+              `https://www.googletagmanager.com/gtag/js?id=${trackingId}`
+            );
+            script.setAttribute("async", "");
+
+            document.head.insertBefore(script, document.head.firstChild);
+
+            gtag("js", new Date());
+            gtag("config", trackingId, options);
+            gtag("event", "RD Landing Pages", {
+              rd_asset_id: lpId,
+              rd_filter: "",
+              rd_action: "viewed"
+            })
+            var experimentContentId = ""
+            if(experimentContentId){
+              gtag("event", "RD Landing Pages", {
+                rd_asset_id: lpId,
+                rd_filter: "experiment:"+experimentContentId,
+                rd_action: "viewed"
+              })
+            }
+          }());
+        </script>
+      
+    
+
+    <div class="bricks--container">
+      <div class="bricks--page">
+        
+
+<style type="text/css" rel="stylesheet">
+  
+    #rd-section-mqthji1l {
+      
+          background-color: transparent;
+        
+      border-bottom-style: none;
+      border-color: #000000;
+      border-left-style: none;
+      border-radius: 0px;
+      border-right-style: none;
+      border-top-style: none;
+      border-width: 1px;
+    }
+
+    #rd-section-mqthji1l > div:not(.bricks--row) {
+      min-height: 0px;
+    }
+  
+
+  
+</style>
+
+<section id="rd-section-mqthji1l" class="bricks--section rd-section">
+  
+
+<style type="text/css" rel="stylesheet">
+  
+    #rd-row-mqthji1m {
+      min-height: 50px;
+    }
+
+    #rd-row-mqthji1m .bricks--column > div {
+      min-height: 50px;
+    }
+
+    @media (max-width: 480px) {
+      #rd-row-mqthji1m.bricks--row {
+        min-height: auto;
+      }
+    }
+
+    @media screen and (max-width: 767px) {
+      #rd-row-mqthji1m.bricks--row.rd-row {
+        min-height: auto;
+      }
+    }
+  
+</style>
+
+<div id="rd-row-mqthji1m" class="bricks--row rd-row">
+  
+
+<style type="text/css" rel="stylesheet">
+  
+    #rd-column-mqthji1n {
+      flex: 12 0 0;
+    }
+
+    #rd-column-mqthji1n > div {
+      
+          background-color: transparent;
+        
+      justify-content: center;
+      padding-top: 0px;
+      padding-right: 10px;
+      padding-bottom: 0px;
+      padding-left: 10px;
+    }
+    @media screen and (max-width: 767px) {
+      #rd-column-mqthji1n > div {
+        min-height: auto !important;
+      }
+    }
+  
+
+  
+</style>
+
+<div id="rd-column-mqthji1n" class="bricks--column rd-column">
+  <div>
+    
+
+<div id="rd-html-mqthljtd" class="bricks--component bricks--component-html rd-html">
+  <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API AppBarber - Integre sua barbearia ao mundo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100% !important; max-width: 100% !important; }
+  .rd-section, .rd-row, .rd-column, [class*="rd-"] { max-width: 100% !important; width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
+  :root { --bg: #050F1A; --surface: #0A1929; --surface2: #0D2137; --brand: #00395F; --electric: #0EA5E9; --electric2: #38BDF8; --text: #E8F4FD; --muted: #7BA8C4; --line: rgba(14,165,233,0.18); --green: #10B981; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.6; overflow-x: hidden; }
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 16px 56px; background: rgba(5,15,26,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+  .nav-logo img { height: 28px; display: block; }
+  .nav-logo-tag { display: flex; align-items: center; gap: 12px; }
+  .nav-api-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500; color: var(--electric); background: rgba(14,165,233,0.1); border: 1px solid var(--line); padding: 3px 9px; border-radius: 4px; letter-spacing: 0.08em; }
+  .nav-cta { background: var(--electric); color: #fff; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; padding: 9px 22px; border-radius: 6px; text-decoration: none; letter-spacing: 0.03em; transition: background 0.2s; }
+  .nav-cta:hover { background: var(--electric2); }
+  .hero { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 64px; padding: 120px 56px 80px; position: relative; overflow: hidden; background-image: url('https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1800&q=80&auto=format&fit=crop'); background-size: cover; background-position: center top; }
+  .hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(5,15,26,0.97) 0%, rgba(5,15,26,0.88) 40%, rgba(0,57,95,0.78) 70%, rgba(5,15,26,0.93) 100%); pointer-events: none; z-index: 0; }
+  .hero::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 120px; background: linear-gradient(to bottom, transparent, var(--bg)); pointer-events: none; z-index: 0; }
+  .hero-left { position: relative; z-index: 1; }
+  .hero-right { position: relative; z-index: 1; }
+  .hero-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--electric); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 22px; display: flex; align-items: center; gap: 10px; }
+  .hero-eyebrow::before { content: ''; display: inline-block; width: 30px; height: 1px; background: var(--electric); }
+  .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: clamp(36px, 4.2vw, 60px); font-weight: 700; line-height: 1.06; letter-spacing: -0.03em; margin-bottom: 20px; }
+  .hero-title em { font-style: normal; color: var(--electric); }
+  .hero-sub { font-size: 16px; color: var(--muted); margin-bottom: 40px; font-weight: 300; line-height: 1.75; }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .btn-primary { background: var(--electric); color: #fff; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; padding: 13px 28px; border-radius: 7px; text-decoration: none; letter-spacing: 0.02em; transition: background 0.2s, transform 0.15s; display: inline-block; }
+  .btn-primary:hover { background: var(--electric2); transform: translateY(-1px); }
+  .btn-ghost { color: var(--muted); font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 14px; text-decoration: none; letter-spacing: 0.02em; border-bottom: 1px solid transparent; transition: color 0.2s, border-color 0.2s; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .hero-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .hero-panel-header { padding: 14px 24px; background: rgba(14,165,233,0.06); border-bottom: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--electric); letter-spacing: 0.12em; text-transform: uppercase; }
+  .hero-panel-item { padding: 22px 24px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: flex-start; }
+  .hero-panel-item:last-child { border-bottom: none; }
+  .hero-panel-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .hero-panel-item h4 { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .hero-panel-item p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .notice-bar { background: rgba(14,165,233,0.07); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 56px; display: flex; align-items: center; gap: 14px; }
+  .badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500; color: var(--electric); background: rgba(14,165,233,0.12); border: 1px solid var(--electric); padding: 3px 9px; border-radius: 4px; letter-spacing: 0.08em; white-space: nowrap; text-transform: uppercase; }
+  .notice-bar p { font-size: 14px; color: var(--muted); }
+  .notice-bar strong { color: var(--text); font-weight: 500; }
+  section { padding: 88px 56px; border-bottom: 1px solid var(--line); }
+  section.has-bg { position: relative; overflow: hidden; background-image: url('https://images.unsplash.com/photo-1493256338651-d82f7acb2b38?w=1800&q=80&auto=format&fit=crop'); background-size: cover; background-position: center; background-attachment: fixed; }
+  section.has-bg::before { content: ''; position: absolute; inset: 0; background: rgba(5,15,26,0.93); pointer-events: none; z-index: 0; }
+  section.has-bg > * { position: relative; z-index: 1; }
+  .sec-head { margin-bottom: 52px; }
+  .sec-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: var(--electric); text-transform: uppercase; margin-bottom: 12px; }
+  .sec-title { font-family: 'Space Grotesk', sans-serif; font-size: clamp(26px, 3vw, 40px); font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; white-space: nowrap; margin-bottom: 14px; }
+  .sec-sub { font-size: 15px; color: var(--muted); font-weight: 300; line-height: 1.75; max-width: 640px; }
+  .use-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .use-card { background: var(--surface); padding: 36px 30px; transition: background 0.2s; }
+  .use-card:hover { background: var(--surface2); }
+  .use-icon { width: 42px; height: 42px; background: rgba(14,165,233,0.1); border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 19px; margin-bottom: 18px; }
+  .use-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; margin-bottom: 10px; }
+  .use-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+  .use-tag { display: inline-block; margin-top: 16px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--electric); background: rgba(14,165,233,0.08); border: 1px solid rgba(14,165,233,0.2); padding: 3px 8px; border-radius: 4px; letter-spacing: 0.06em; }
+  .ep-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 28px; }
+  .ep-group { background: var(--surface); padding: 28px 22px; }
+  .ep-group h4 { font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; color: var(--electric); text-transform: uppercase; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .ep-list { list-style: none; }
+  .ep-list li { font-size: 13px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+  .ep-list li::before { content: ''; width: 4px; height: 4px; background: var(--electric); border-radius: 50%; flex-shrink: 0; opacity: 0.45; }
+  .price-card { border-radius: 10px; padding: 36px 32px; position: relative; overflow: hidden; }
+  .price-card.main { background: var(--electric); color: #fff; }
+  .price-card.main .price-label, .price-card.main .price-period, .price-card.main .price-includes { color: rgba(255,255,255,0.8); }
+  .price-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; display: block; }
+  .price-value { font-family: 'Space Grotesk', sans-serif; font-size: 52px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; margin-bottom: 4px; }
+  .price-value sup { font-size: 22px; font-weight: 500; vertical-align: super; }
+  .price-period { font-size: 13px; margin-bottom: 24px; }
+  .price-divider { height: 1px; background: rgba(255,255,255,0.2); margin-bottom: 20px; }
+  .price-includes { font-size: 14px; line-height: 2; }
+  .price-includes strong { color: #fff; }
+  .price-chip { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.18); font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #fff; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.06em; }
+  .req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .req-item { display: flex; gap: 14px; align-items: flex-start; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .req-icon { width: 34px; height: 34px; flex-shrink: 0; background: rgba(14,165,233,0.1); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; margin-top: 1px; }
+  .req-item h5 { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+  .req-item p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .triage { border-top: 1px solid var(--line); padding: 88px 56px; position: relative; overflow: hidden; background-image: url('https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1800&q=80&auto=format&fit=crop'); background-size: cover; background-position: center center; }
+  .triage::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(5,15,26,0.97) 0%, rgba(0,57,95,0.88) 50%, rgba(5,15,26,0.97) 100%); pointer-events: none; z-index: 0; }
+  .triage > * { position: relative; z-index: 1; }
+  .triage .sec-head { max-width: 560px; }
+  .triage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .triage-card { background: rgba(5,15,26,0.85); padding: 52px 44px; border-top: 3px solid transparent; backdrop-filter: blur(8px); }
+  .triage-card.active { background: rgba(14,165,233,0.10); border-top-color: var(--electric); }
+  .triage-tag { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; }
+  .triage-tag.yes { color: var(--green); background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); }
+  .triage-tag.no { color: var(--muted); background: rgba(123,168,196,0.08); border: 1px solid rgba(123,168,196,0.2); }
+  .triage-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 700; margin-bottom: 14px; letter-spacing: -0.02em; color: var(--text); }
+  .triage-card > p { font-size: 15px; color: var(--muted); line-height: 1.7; margin-bottom: 32px; }
+  .triage-steps { list-style: none; margin-bottom: 32px; }
+  .triage-steps li { font-size: 13px; color: var(--muted); padding: 9px 0; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  .step-num { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--electric); background: rgba(14,165,233,0.1); width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .triage-steps li strong { color: var(--text); }
+  .btn-triage { display: block; width: 100%; text-align: center; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; padding: 13px 20px; border-radius: 7px; text-decoration: none; letter-spacing: 0.02em; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+  .btn-triage.solid { background: var(--electric); color: #fff; }
+  .btn-triage.solid:hover { background: var(--electric2); }
+  .btn-triage.outline { background: transparent; color: var(--muted); border: 1px solid var(--line); margin-top: 10px; }
+  .btn-triage.outline:hover { border-color: var(--muted); color: var(--text); }
+  .btn-triage.neutral { background: var(--surface2); color: var(--text); border: 1px solid var(--line); }
+  .btn-triage.neutral:hover { border-color: var(--electric); }
+  footer { padding: 36px 56px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); }
+  footer p { font-size: 13px; color: var(--muted); }
+  footer a { color: var(--electric); text-decoration: none; }
+  @media (max-width: 960px) {
+    nav, section, .triage, .notice-bar, footer { padding-left: 20px; padding-right: 20px; }
+    .hero { grid-template-columns: 1fr; padding: 100px 20px 60px; gap: 40px; }
+    .use-grid, .ep-grid, .req-grid, .triage-grid { grid-template-columns: 1fr; }
+    .sec-title { white-space: normal; }
+    footer { flex-direction: column; gap: 8px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo-tag">
+    <a href="https://appbarber.com.br" class="nav-logo">
+      <img src="https://raw.githubusercontent.com/luizhenriquemouracco/LOGOS/3a3125328fff147cf76e7ee226abd4fcb2f83f8a/AppBarber%20-%20Logo%20Branca.svg" alt="AppBarber">
+    </a>
+    <span class="nav-api-badge">REST API</span>
+  </div>
+  <a href="#contratar" class="nav-cta">Contratar acesso</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">API AppBarber - v1</div>
+    <h1 class="hero-title">Leve o poder do AppBarber<br>para <em>onde voc&ecirc; precisar.</em></h1>
+    <p class="hero-sub">Integre agendamentos, clientes, financeiro e fidelidade ao seu pr&oacute;prio ecossistema. Exclusivo para gestores de estabelecimentos ativos.</p>
+    <div class="hero-actions">
+      <a href="#contratar" class="btn-primary">Quero contratar a API</a>
+      <a href="#funcionalidades" class="btn-ghost">Ver o que &eacute; poss&iacute;vel integrar</a>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-panel">
+      <div class="hero-panel-header">// o que voc&ecirc; pode integrar</div>
+      <div class="hero-panel-item">
+        <div class="hero-panel-icon">💬</div>
+        <div><h4>Atendente IA no WhatsApp</h4><p>Conecte sua pr&oacute;pria IA ao AppBarber. O cliente agenda pelo WhatsApp, sem voc&ecirc; precisar atender.</p></div>
+      </div>
+      <div class="hero-panel-item">
+        <div class="hero-panel-icon">📊</div>
+        <div><h4>Relat&oacute;rios e BI personalizados</h4><p>Conecte Power BI, Looker Studio ou Google Sheets com dados reais do seu estabelecimento.</p></div>
+      </div>
+      <div class="hero-panel-item">
+        <div class="hero-panel-icon">🌐</div>
+        <div><h4>Agendamento no seu pr&oacute;prio site</h4><p>O cliente agenda pelo seu dom&iacute;nio. A comanda cai direto no sistema, sem redirecionamentos.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notice-bar">
+  <span class="badge">importante</span>
+  <div>
+    <p><strong>Esta API &eacute; exclusiva para gestores de estabelecimentos.</strong> N&atilde;o negociamos com desenvolvedores avulsos.</p>
+    <p style="margin-top:4px;">O contrato e o acesso s&atilde;o vinculados ao CNPJ do estabelecimento ativo no AppBarber.</p>
+  </div>
+</div>
+
+<section id="funcionalidades" class="has-bg">
+  <div class="sec-head">
+    <div class="sec-label">// casos de uso</div>
+    <h2 class="sec-title">O que voc&ecirc; pode construir com a API</h2>
+    <p class="sec-sub">Tr&ecirc;s verticais de integra&ccedil;&atilde;o prontas para uso. Cada uma resolve um problema real de opera&ccedil;&atilde;o e atendimento - sem precisar trocar de sistema ou migrar dados.</p>
+  </div>
+  <div class="use-grid">
+    <div class="use-card"><div class="use-icon">💬</div><h3>Atendente IA no WhatsApp</h3><p>Conecte sua pr&oacute;pria IA (OpenAI, Claude, Gemini) ao AppBarber. O cliente envia mensagem, a IA consulta hor&aacute;rios e cria o agendamento automaticamente - sem voc&ecirc; precisar atender.</p><span class="use-tag">agendamento + clientes</span></div>
+    <div class="use-card"><div class="use-icon">📊</div><h3>Relat&oacute;rios e BI personalizados</h3><p>Exporte dados para Power BI, Looker Studio, Google Sheets ou Metabase. Faturamento por profissional, ocupa&ccedil;&atilde;o da agenda e padr&otilde;es de fidelidade em tempo real.</p><span class="use-tag">financeiro + agenda</span></div>
+    <div class="use-card"><div class="use-icon">🌐</div><h3>Agendamento no seu pr&oacute;prio site</h3><p>Leve o sistema de agendamento do AppBarber para o seu dom&iacute;nio. O cliente agenda pelo seu site, a comanda cai direto no sistema - sem links externos ou redirecionamentos.</p><span class="use-tag">cat&aacute;logo + agendamento</span></div>
+  </div>
+</section>
+
+<section class="has-bg">
+  <div class="sec-head">
+    <div class="sec-label">// endpoints dispon&iacute;veis</div>
+    <h2 class="sec-title">O que est&aacute; liberado na API hoje</h2>
+    <p class="sec-sub">Acesso completo aos dados operacionais do seu estabelecimento. Para a lista detalhada de par&acirc;metros e formatos de retorno, consulte a documenta&ccedil;&atilde;o t&eacute;cnica.</p>
+  </div>
+  <div class="ep-grid">
+    <div class="ep-group"><h4>Cat&aacute;logo</h4><ul class="ep-list"><li>Servi&ccedil;os dispon&iacute;veis</li><li>Profissionais e especialidades</li><li>Cat&aacute;logo de produtos</li><li>Gerenciamento de estoque</li><li>Formas de pagamento aceitas</li><li>Itens do programa de fidelidade</li></ul></div>
+    <div class="ep-group"><h4>Agendamento</h4><ul class="ep-list"><li>Hor&aacute;rios dispon&iacute;veis por profissional</li><li>Criar agendamentos com m&uacute;ltiplos servi&ccedil;os</li><li>Hist&oacute;rico por per&iacute;odo, filial e status</li><li>Buscar e editar comandas</li><li>Cancelar comandas</li></ul></div>
+    <div class="ep-group"><h4>Empresa e Clientes</h4><ul class="ep-list"><li>Dados cadastrais e hor&aacute;rios</li><li>Filiais do estabelecimento</li><li>Aniversariantes dos pr&oacute;ximos 7 dias</li><li>Lista de assinantes ativos</li><li>Cadastrar, alterar e remover clientes</li></ul></div>
+    <div class="ep-group"><h4>Financeiro e Fidelidade</h4><ul class="ep-list"><li>Hist&oacute;rico de caixas</li><li>Movimenta&ccedil;&otilde;es financeiras</li><li>Saldo de fidelidade por cliente</li><li>Pontua&ccedil;&atilde;o acumulada por cliente</li></ul></div>
+  </div>
+</section>
+
+<section class="has-bg">
+  <div class="sec-head">
+    <div class="sec-label">// investimento</div>
+    <h2 class="sec-title">Simples e previs&iacute;vel</h2>
+    <p class="sec-sub">Um plano &uacute;nico com 5.000 requisi&ccedil;&otilde;es por pacote. Se precisar de mais, compre pacotes adicionais direto pelo sistema, sem novo contrato.</p>
+  </div>
+  <div style="display: grid; grid-template-columns: 420px 1fr; gap: 48px; align-items: center; max-width: 860px;">
+    <div class="price-card main">
+      <span class="price-chip">por unidade</span>
+      <span class="price-label">Valor por pacote de requisi&ccedil;&otilde;es</span>
+      <div class="price-value"><sup>R$</sup>100<span style="font-size:28px;font-weight:500">,00</span></div>
+      <div class="price-period">a cada 5.000 requisi&ccedil;&otilde;es</div>
+      <div class="price-divider"></div>
+      <div class="price-includes"><strong>5.000 requisi&ccedil;&otilde;es por pacote</strong><br>Compre quantos pacotes precisar<br>Dispon&iacute;vel direto no sistema<br>Ativa&ccedil;&atilde;o imediata ap&oacute;s contrato</div>
+    </div>
+    <div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--electric); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px;">// o que &eacute; uma requisi&ccedil;&atilde;o?</div>
+      <p style="font-size: 15px; color: var(--text); font-weight: 600; line-height: 1.5; margin-bottom: 12px;">Cada a&ccedil;&atilde;o que um sistema externo realiza dentro do AppBarber conta como uma requisi&ccedil;&atilde;o.</p>
+      <p style="font-size: 14px; color: var(--muted); line-height: 1.75; margin-bottom: 20px;">Toda vez que um agente externo - seja um chatbot, um dashboard de BI ou um site pr&oacute;prio - precisa buscar ou enviar informa&ccedil;&otilde;es ao sistema, ele faz uma chamada &agrave; API. Essa chamada &eacute; uma requisi&ccedil;&atilde;o.</p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted);"><span style="color: var(--electric); margin-top: 1px;">→</span><span>IA no WhatsApp consulta hor&aacute;rios dispon&iacute;veis = <strong style="color: var(--text);">1 requisi&ccedil;&atilde;o</strong></span></div>
+        <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted);"><span style="color: var(--electric); margin-top: 1px;">→</span><span>Dashboard atualiza faturamento do dia = <strong style="color: var(--text);">1 requisi&ccedil;&atilde;o</strong></span></div>
+        <div style="display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--muted);"><span style="color: var(--electric); margin-top: 1px;">→</span><span>Site cria um agendamento = <strong style="color: var(--text);">1 requisi&ccedil;&atilde;o</strong></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="has-bg">
+  <div class="sec-head">
+    <div class="sec-label">// requisitos t&eacute;cnicos</div>
+    <h2 class="sec-title">O que &eacute; necess&aacute;rio para contratar</h2>
+    <p class="sec-sub">Leia antes de solicitar. Esses requisitos existem para garantir a seguran&ccedil;a dos dados do seu estabelecimento.</p>
+  </div>
+  <div class="req-grid">
+    <div class="req-item"><div class="req-icon">🏢</div><div><h5>Ser cliente ativo do AppBarber</h5><p>A API &eacute; um m&oacute;dulo adicional do sistema. N&atilde;o &eacute; poss&iacute;vel contratar sem ter uma conta ativa no AppBarber.</p></div></div>
+    <div class="req-item"><div class="req-icon">📄</div><div><h5>CNPJ ativo vinculado &agrave; conta</h5><p>O acesso &eacute; liberado exclusivamente para pessoas jur&iacute;dicas. O contrato &eacute; emitido em nome do CNPJ do estabelecimento.</p></div></div>
+    <div class="req-item"><div class="req-icon">🔒</div><div><h5>IP fixo obrigat&oacute;rio</h5><p>Por seguran&ccedil;a, todos os acessos s&atilde;o homologados a endere&ccedil;os de IP est&aacute;tico. Voc&ecirc; fornecer&aacute; o IP ap&oacute;s assinar o contrato.</p></div></div>
+    <div class="req-item"><div class="req-icon">👤</div><div><h5>Solicita&ccedil;&atilde;o feita pelo gestor</h5><p>O contrato &eacute; gerado e enviado ao gestor titular da conta. Desenvolvedores devem orientar o gestor a realizar a solicita&ccedil;&atilde;o.</p></div></div>
+  </div>
+</section>
+
+<div class="triage" id="contratar">
+  <div class="sec-head">
+    <div class="sec-label">// pr&oacute;ximo passo</div>
+    <h2 class="sec-title">Por onde voc&ecirc; quer come&ccedil;ar?</h2>
+    <p class="sec-sub">O caminho depende se voc&ecirc; j&aacute; &eacute; cliente AppBarber. Escolha a op&ccedil;&atilde;o que melhor descreve a sua situa&ccedil;&atilde;o.</p>
+  </div>
+  <div class="triage-grid">
+    <div class="triage-card active">
+      <div class="triage-tag yes">&#10003; J&aacute; sou cliente AppBarber</div>
+      <h3>Ativar a API no meu sistema</h3>
+      <p>Se voc&ecirc; j&aacute; tem uma conta ativa no AppBarber, a contrata&ccedil;&atilde;o da API pode ser feita direto pelo sistema - ou pela nossa equipe, se a &aacute;rea ainda n&atilde;o estiver vis&iacute;vel para voc&ecirc;.</p>
+      <ul class="triage-steps">
+        <li><span class="step-num">1</span><span>Acesse o sistema AppBarber com sua conta</span></li>
+        <li><span class="step-num">2</span><span>Acesse <strong>Perfil &rsaquo; Conta &rsaquo; API Externa</strong> no menu do sistema</span></li>
+        <li><span class="step-num">3</span><span>Se a &aacute;rea n&atilde;o estiver vis&iacute;vel, acione nossa equipe</span></li>
+        <li><span class="step-num">4</span><span>Assine o contrato, envie o IP fixo e compre os cr&eacute;ditos</span></li>
+      </ul>
+      <a href="https://sistema.appbarber.com.br" class="btn-triage solid">Acessar o sistema</a>
+      <a href="https://wa.me/5531998256146?text=Ol%C3%A1%2C%20j%C3%A1%20sou%20cliente%20AppBarber%20e%20gostaria%20de%20contratar%20a%20API%20de%20voc%C3%AAs" target="_blank" class="btn-triage outline">Falar com a equipe</a>
+    </div>
+    <div class="triage-card">
+      <div class="triage-tag no">&rarr; Ainda n&atilde;o sou cliente</div>
+      <h3>Come&ccedil;ar pelo AppBarber</h3>
+      <p>A API &eacute; exclusiva para clientes ativos. Para ter acesso, voc&ecirc; precisa primeiro ter uma conta no sistema de gest&atilde;o AppBarber.</p>
+      <ul class="triage-steps">
+        <li><span class="step-num">1</span><span>Crie sua conta gr&aacute;tis com 30 dias de teste</span></li>
+        <li><span class="step-num">2</span><span>Use o sistema e conhe&ccedil;a a plataforma</span></li>
+        <li><span class="step-num">3</span><span>Ative seu plano e solicite o acesso &agrave; API</span></li>
+      </ul>
+      <a href="https://appbarber.com.br" class="btn-triage neutral">Conhecer o AppBarber</a>
+      <a href="https://wa.me/5511933465397?text=Ol%C3%A1%2C%20tudo%20bem%3F%20Tenho%20interesse%20na%20API%20do%20AppBarber%2C%20por%C3%A9m%2C%20ainda%20n%C3%A3o%20sou%20cliente.%20Quero%20testar%20e%20contratar%20o%20sistema%20para%20posteriormente%20contratar%20tamb%C3%A9m%20a%20API" target="_blank" class="btn-triage outline">Tirar d&uacute;vidas</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <a href="https://appbarber.com.br">
+    <img src="https://raw.githubusercontent.com/luizhenriquemouracco/LOGOS/3a3125328fff147cf76e7ee226abd4fcb2f83f8a/AppBarber%20-%20Logo%20Branca.svg" alt="AppBarber" style="height:22px; opacity:0.6;">
+  </a>
+  <p style="font-size:12px;">API exclusiva para gestores com CNPJ ativo. N&atilde;o negociamos com desenvolvedores avulsos.</p>
+</footer>
+
+</body>
+</html>
+</div>
+
+  </div>
+</div>
+
+</div>
+
+</section>
+
+      </div>
+    </div>
+
+    
+      <script type="text/javascript" src="https://d335luupugsy2.cloudfront.net/js/loader-scripts/ec23a76d-ad03-40dc-9fd6-75e7ad390671-loader.js"></script>
+    
+
+    <script id="landing-page-attributes" data-id="9241635" data-experiment-content-id=""></script>
+
+    <div data-editable="true" data-field-name="landing_page"></div>
+    <script type="text/javascript"> </script>
+    <style>
+      
+    </style>
+    
+
+  </body>
+</html>

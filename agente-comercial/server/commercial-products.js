@@ -9,7 +9,7 @@ export const PRODUCT_SEEDS=[
  {id:'estoque',name:'Controle de estoque',tags:['Controle de estoque'],benefit:'Organize produtos e acompanhe entradas e saídas.',family:'command'},
  {id:'financeiro',name:'Gestão financeira',tags:['Gestão financeira'],benefit:'Conheça o acompanhamento financeiro da empresa.',family:'command'},
  {id:'erp',name:'Gestão de loja',tags:['Gestão de loja'],benefit:'Conheça a gestão de vendas, estoque e financeiro.',family:'command'},
- {id:'oficina',name:'Oficina / Ordens de serviço',tags:['Oficina / Ordens de serviço'],benefit:'Conheça a organização de ordens de serviço, peças e serviços.',family:'command'},
+ {id:'oficina',name:'Oficina / Ordens de serviço',salesUrl:'https://commandweb.net/oficina',conditions:'Contratação e acesso conforme os planos e condições da página oficial. Não anunciar teste gratuito nem cadastro gratuito sem confirmação.',firstStep:'Abra a página oficial, confira os planos e selecione Assinar e começar para seguir o cadastro nas condições apresentadas.',tags:['Oficina / Ordens de serviço'],benefit:'Conheça a organização de ordens de serviço, peças e serviços.',family:'command'},
  {id:'contador',name:'Command para contadores',tags:['Contadores'],benefit:'Conheça a oferta para escritórios contábeis.',salesUrl:'https://commandweb.net/contador',conditions:'A página informa cadastro grátis; a emissão é cobrada conforme as condições da oferta.',family:'command'},
  {id:'cte',name:'CT-e',tags:['CT-e'],benefit:'Converse com a equipe sobre emissão de CT-e e seus requisitos.',family:'command'},
  {id:'mdfe',name:'MDF-e',tags:['MDF-e'],benefit:'Converse com a equipe sobre emissão de MDF-e e seus requisitos.',family:'command'},
@@ -37,6 +37,7 @@ export function chooseProduct(products,lead,tags=[]){
  const interests=new Set([...tags,...interestTags(lead?.produtos_interesse||'').map(t=>t.name)].map(tagNameKey));
  const found=products.filter(p=>p.enabled!==false&&p.tags.some(t=>interests.has(tagNameKey(t))));
  // A tag de público é mais específica que o tipo de nota; não enviar oferta contábil a empresas em geral.
- return found.find(p=>p.id==='contador')||found[0]||null;
+ const segment=String(lead?.segmento||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(),mechanic=!/\bnao\b/.test(segment)&&(/oficina (?:mecanica|automotiva|de (?:carros|motos|veiculos))|mecanica automotiva|auto ?center/.test(segment)||segment.trim()==='oficina');
+ return found.find(p=>p.id==='contador')||(mechanic?products.find(p=>p.enabled!==false&&p.id==='oficina'):null)||found.find(p=>p.id==='oficina')||found[0]||null;
 }
 export const productGaps=p=>[!p.salesUrl&&'Página comercial',!p.trialConfirmed&&'Teste confirmado',!p.templateName&&'Modelo de cadência',!p.integrationReady&&'Integração de uso'].filter(Boolean);

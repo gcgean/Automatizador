@@ -55,6 +55,7 @@ function DailyChart({rows}){
 export function AttendanceReport({connectionId='default',allowExport=true}){
  const t=today();
  const [filters,setFilters]=useState({from:t.slice(0,8)+'01',to:t,connection:'',department:'',user:''}),[data,setData]=useState(null),[messages,setMessages]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loadedKey,setLoadedKey]=useState(0);
+ const [closedFilters,setClosedFilters]=useState(filters);
  const set=(k,v)=>setFilters(f=>({...f,[k]:v}));
  const messageConnection=filters.connection||connectionId,messageQuery='?'+new URLSearchParams({from:filters.from,to:filters.to,connection:messageConnection});
  async function load(){
@@ -62,12 +63,12 @@ export function AttendanceReport({connectionId='default',allowExport=true}){
   try{
    const q=new URLSearchParams({from:filters.from,to:filters.to,connections:filters.connection});if(filters.department)q.set('department',filters.department);if(filters.user)q.set('user',filters.user);
    const [d,m]=await Promise.all([request('/reports/attendance?'+q),request('/reports'+messageQuery).catch(()=>null)]);
-   setData(d);setMessages(m);setLoadedKey(k=>k+1);
+   setData(d);setMessages(m);setClosedFilters({...filters});setLoadedKey(k=>k+1);
   }catch(e){setError(e.message);}finally{setBusy(false);}
  }
  useEffect(()=>{load();},[]);
  async function exportCSV(){setBusy(true);setError('');try{const r=await fetch('/reports/messages.csv'+messageQuery,{credentials:'same-origin'});if(!r.ok)throw new Error(await r.text());const link=document.createElement('a');link.href=URL.createObjectURL(await r.blob());link.download='mensagens.csv';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}catch(e){setError(e.message);}finally{setBusy(false);}}
- const s=data?.summary,v=data?.variation||{},prev=data?.previous||{},shownConnections=(filters.connection?[filters.connection]:(data?.available||[]).map(c=>c.id)).join(',');
+ const s=data?.summary,v=data?.variation||{},prev=data?.previous||{},shownConnections=(closedFilters.connection?[closedFilters.connection]:(data?.available||[]).map(c=>c.id)).join(',');
  const colorOf=id=>data?.available.find(c=>c.id===id)?.color;
  return <section className="att-report" aria-label="Relatório de atendimentos">
   <div className="att-title"><div><h2>Relatório de Atendimentos</h2><p>Atendimentos com conversa no período, por número, setor e atendente. Datas no horário de Brasília.</p></div><button type="button" className="secondary att-export" disabled={busy||!allowExport} onClick={exportCSV}><Download size={15}/>Exportar mensagens CSV</button></div>
@@ -110,7 +111,7 @@ export function AttendanceReport({connectionId='default',allowExport=true}){
    <Card icon={Users} tone="blue" title="Desempenho por Atendente" subtitle="Ordenado por volume. TMA considera só os finalizados." className="att-table-card">
     {data.byAttendant.length?<div className="table-wrap"><table className="att-table"><thead><tr><th>Atendente</th><th>Chamados</th><th>Finalizados</th><th>Em aberto</th><th>TMA</th><th>1ª resposta</th><th>% do total</th><th>Por dia</th></tr></thead><tbody>{data.byAttendant.map(a=><tr key={a.id||'ai'}><td>{a.name}</td><td>{a.total}</td><td>{a.closed}</td><td>{a.open}</td><td>{duration(a.tma)}</td><td>{duration(a.firstResponse)}</td><td>{a.share}%</td><td><Sparkline values={a.daily}/></td></tr>)}</tbody></table></div>:<p className="att-empty">Nenhum atendimento no período.</p>}
    </Card>
-   <ClosureReasonsReport connectionId={shownConnections} from={filters.from} to={filters.to} refreshKey={loadedKey}/>
+   <ClosureReasonsReport connectionId={shownConnections} from={closedFilters.from} to={closedFilters.to} departmentId={closedFilters.department} userId={closedFilters.user} refreshKey={loadedKey} allowExport={allowExport}/>
    {messages&&<Card icon={MessageSquare} tone="slate" title="Mensagens do Período" subtitle={'Número: '+(data.available.find(c=>c.id===messageConnection)?.name||'atual')+'. Entregues inclui lidas; saídas incluem tentativas de envio.'}>
     <div className="att-kpis six">{[['Novos contatos',messages.leads.total],['Recebidas',messages.messages.received],['Saídas registradas',messages.messages.sent],['Entregues',messages.messages.delivered],['Lidas',messages.messages.read],['Falhas / conferir',messages.messages.failed]].map(([label,value])=><article className="att-kpi" key={label}><div className="att-kpi-head"><span className="att-kpi-label">{label}</span></div><strong>{value}</strong></article>)}</div>
     {messages.queue?.length>0&&<p className="att-note">Pendências atuais da fila: {messages.queue.map(r=>({queued:'Na fila',processing:'Em processamento',attention:'Conferir envio'}[r.status]||r.status)+': '+r.total).join(' · ')}</p>}

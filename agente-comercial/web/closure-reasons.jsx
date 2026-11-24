@@ -3,12 +3,14 @@ import {createPortal} from 'react-dom';
 import {Search,X,Plus,Check,Sparkles} from 'lucide-react';
 import {request} from './account.jsx';
 import './closure-reasons.css';
+import {closureReportCsv} from '../shared/closure-report.js';
 
 const plain=text=>String(text||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 
 // Janela aberta ao clicar em Finalizar: pesquisar e adicionar um ou mais motivos,
 // e cadastrar um motivo novo depois que a IA confere que ele não repete um existente.
 export function ClosurePanel({busy,onCancel,onConfirm,canCreate=true}){
+ const [note,setNote]=useState('');
  const [data,setData]=useState(null),[chosen,setChosen]=useState([]),[query,setQuery]=useState(''),[error,setError]=useState(''),[checking,setChecking]=useState(false),[check,setCheck]=useState(null),[creating,setCreating]=useState(false),search=useRef(null);
  useEffect(()=>{let active=true;request('/closure-reasons').then(d=>{if(active)setData(d);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[]);
  useEffect(()=>{search.current?.focus();const key=e=>{if(e.key==='Escape')onCancel();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
@@ -38,7 +40,8 @@ export function ClosurePanel({busy,onCancel,onConfirm,canCreate=true}){
    {canCreate&&data&&<div className="closure-new"><button type="button" className="secondary" disabled={checking} onClick={()=>{if(term&&!exact)createReason();else{setCreating(true);setCheck(null);search.current?.focus();}}}><Plus size={15}/>{checking?'Conferindo com a IA…':'Cadastrar novo motivo'}</button>{creating&&!term&&<span>Digite o nome no campo acima. A IA confere se já existe um motivo com o mesmo sentido.</span>}</div>}
    {check?.kind==='duplicate'&&<div className="closure-check duplicate" role="status">Já existe um motivo com o mesmo sentido: <strong>{check.reason.name}</strong>{check.how==='ia'?' (conferido pela IA)':''}.{check.reason.active!==false?<button type="button" onClick={()=>add(check.reason.id)}>Usar este</button>:<span> Ele está desativado; peça a um administrador para reativar.</span>}</div>}
    {check?.kind==='created'&&<div className="closure-check created" role="status"><Check size={14}/>Motivo <strong>{check.name}</strong> cadastrado{check.aiChecked?' e conferido pela IA':''} e adicionado.</div>}
-   <div className="closure-modal-foot"><button type="button" className="secondary" onClick={onCancel}>Cancelar</button><button type="button" disabled={busy||!data||missing} title={missing?'Adicione ao menos um motivo':''} onClick={()=>onConfirm(chosen)}>Finalizar{chosen.length?' com '+chosen.length+' motivo'+(chosen.length>1?'s':''):''}</button></div>
+   <label className="closure-note-field">Observação da finalização <span>Opcional · visível à equipe autorizada e nos relatórios</span><textarea aria-label="Observação da finalização" value={note} maxLength={2000} disabled={busy} rows={3} placeholder="Ex.: faltou um recurso, achou caro, escolheu concorrente, não compareceu ou precisa de ajuda no teste." onChange={e=>setNote(e.target.value)}/><small>{note.length}/2000 · Registre o que foi informado; diferencie uma hipótese sua de uma fala do cliente.</small></label>
+   <div className="closure-modal-foot"><button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancelar</button><button type="button" disabled={busy||!data||missing} title={missing?'Adicione ao menos um motivo':''} onClick={()=>onConfirm(chosen,note)}>Finalizar{chosen.length?' com '+chosen.length+' motivo'+(chosen.length>1?'s':''):''}</button></div>
   </div>
  </div>,document.body);
 }
@@ -62,13 +65,25 @@ export function ClosureReasonSettings(){
 }
 
 // Quadro do relatório de atendimentos: finalizados por motivo no período.
-export function ClosureReasonsReport({connectionId,from,to,refreshKey}){
- const [data,setData]=useState(null),[error,setError]=useState('');
- useEffect(()=>{let active=true;setError('');request('/closure-reasons/report?'+new URLSearchParams({from,to,connections:connectionId})).then(d=>{if(active)setData(d);}).catch(e=>{if(active){setData(null);setError(e.message);}});return()=>{active=false;};},[connectionId,refreshKey]);
- const max=Math.max(1,...(data?.reasons||[]).map(r=>r.total));
+export function ClosureReasonsReport({connectionId,from,to,departmentId='',userId='',refreshKey,allowExport=true}){
+ const [data,setData]=useState(null),[error,setError]=useState(''),[page,setPage]=useState(1);
+ useEffect(()=>{setPage(1);},[connectionId,from,to,departmentId,userId,refreshKey]);
+ useEffect(()=>{let active=true;setData(null);setError('');request('/closure-reasons/report?'+new URLSearchParams({from,to,connections:connectionId,department:departmentId,user:userId,page:String(page)})).then(d=>{if(active)setData(d);}).catch(e=>{if(active){setData(null);setError(e.message);}});return()=>{active=false;};},[connectionId,from,to,departmentId,userId,refreshKey,page]);
+ const max=Math.max(1,...(data?.reasons||[]).map(r=>r.total)),rows=data?.details||[];
+ function exportPage(){const url=URL.createObjectURL(new Blob([closureReportCsv(rows)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='finalizacoes-'+from+'-a-'+to+'-pagina-'+page+'.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
  return <section className="panel closure-report" aria-label="Motivos de finalização"><div className="closure-report-head"><h3>Motivos de finalização</h3>{data&&<span className="muted">{data.closed} finalizado{data.closed===1?'':'s'} no período{data.withoutReason?` · ${data.withoutReason} sem motivo`:''}</span>}</div>
   {error?<p role="alert" className="banner error">{error}</p>:!data?<p className="muted">Carregando…</p>:!data.reasons.length?<p className="muted">Nenhum atendimento finalizado com motivo no período.</p>:
   <ul className="closure-bars">{data.reasons.map(r=><li key={r.id}><span className="closure-bar-label" title={r.name}>{r.name}</span><span className="closure-bar"><span style={{width:(r.total/max*100)+'%'}} className={r.system?'system':''}/></span><strong>{r.total}</strong><small>{data.closed?Math.round(r.total/data.closed*100):0}%</small></li>)}</ul>}
   {data?.reasons.length>0&&<p className="muted closure-note">Um atendimento finalizado com mais de um motivo conta em cada motivo.</p>}
+  {data&&<div className="closure-details"><div className="closure-report-head"><h3>Detalhes e observações</h3>{allowExport&&<button type="button" className="secondary" disabled={!rows.length} onClick={exportPage}>Exportar página CSV</button>}</div>
+   <p className="muted">Finalizar atendimento não significa venda perdida. O resultado comercial é mostrado separadamente. A origem exibe o ID do anúncio registrado até a finalização; sem esse registro, a origem não é presumida.</p>
+   {rows.length?<div className="closure-details-scroll"><table><thead><tr><th>Atendimento</th><th>Equipe</th><th>Motivos e resultado</th><th>Observação</th><th>Origem</th></tr></thead><tbody>{rows.map(r=><tr key={r.ticketId}>
+    <td><strong>#{r.ticketId} · {r.name}</strong><small>{new Date(r.closedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})} · Brasília</small><small>{r.connectionName}{r.product?' · '+r.product:''}</small></td>
+    <td>{r.closedBy||'Não informado'}<small>{r.departmentName||'Sem setor'}{r.assignedUserName?' · Responsável: '+r.assignedUserName:''}</small></td>
+    <td>{r.reasons?.join(' / ')||'Sem motivo informado'}<small>Resultado: {{ganho:'Ganho',perdido:'Perdido',aberto:'Em conversa',apresentacao_agendada:'Conversa agendada',apresentacao_solicitada:'Conversa solicitada'}[r.outcome]||'Não informado'}</small></td>
+    <td className="closure-detail-note">{r.note||'Sem observação'}</td><td>{r.adId?'Anúncio Meta: '+r.adId:'Sem origem confirmada'}</td>
+   </tr>)}</tbody></table></div>:<p className="muted">Nenhum detalhe de finalização disponível para seu acesso neste período.</p>}
+   <div className="closure-pagination"><button type="button" className="secondary" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>Anterior</button><span>Página {page} · {data.detailsTotal||0} atendimentos disponíveis</span><button type="button" className="secondary" disabled={!rows.length||page*data.pageSize>=data.detailsTotal} onClick={()=>setPage(p=>p+1)}>Próxima</button></div>
+  </div>}
  </section>;
 }

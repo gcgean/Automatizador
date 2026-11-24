@@ -1,3 +1,5 @@
+import {LEAD_NURTURING_GUIDANCE} from './lead-nurturing.js';
+import {commercialContent} from './commercial-page-content.js';
 import {commercialPage} from './commercial-pages.js';
 import crypto from 'node:crypto';
 import {encryptSecret,decryptSecret} from './secrets.js';
@@ -8,6 +10,7 @@ import {resolveAccess} from './access.js';
 import {requestsOptOut,declinesInterest} from './consent.js';
 import {clearNoResponseTag} from './conversation-lifecycle.js';
 
+const APPROVED_OFFICIAL_PAGES={nfe:'https://commandweb.net/nota-fiscal-eletronica',nfse:'https://commandweb.net/nota-fiscal-de-servico',contador:'https://commandweb.net/contador',oficina:'https://commandweb.net/oficina'};
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const uuid=s=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s||'');
 export const PRODUCT_EVENTS=['signup_completed','trial_started','first_login','activation_completed','session_started','usage_error','subscription_started','trial_expired','subscription_cancelled'];
@@ -22,6 +25,11 @@ export function immediateSalesIntent(text){
  if(/\b(?:ela|ele|cliente|pessoa) (?:disse|perguntou)\b/.test(s)||requestsOptOut(s)||declinesInterest(s)||/\b(?:nao|nunca)\b/.test(s)||/\b(?:amanha|depois|mais tarde|outro dia)\b/.test(s))return false;
  return /\b(?:ja )?pode(?:m)? (?:me )?ligar\b|\b(?:estou|to) disponivel\b|\b(?:quero|gostaria de) (?:contratar|comprar|assinar|fechar|falar com (?:um |o |uma |a )?(?:vendedor|consultor|humano|pessoa|atendente))\b|\b(?:podemos|vamos) (?:falar|conversar|fechar) agora\b/.test(s);
 }
+export function prefersProductTrial(text){
+ const s=String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ if(/\b(?:nao|nunca|agendamento|reagendamento|reuniao|apresentacao|demonstracao|ligacao|vendedor|humano|consultor)\b/.test(s)||/\b(?:agendar|reagendar|remarcar)\b/.test(s))return false;
+ return /\b(?:testar|teste|experimentar|link|acessar o sistema|acesso ao sistema|conhecer o sistema|quero conhecer|como funciona|ver o sistema)\b/.test(s);
+}
 export class CommercialGrowth{
  constructor(store,config,{fetchImpl=fetch,now=()=>new Date()}={}){this.store=store;this.config=config;this.fetch=fetchImpl;this.now=now;}
  bind(registry){this.registry=registry;}
@@ -34,19 +42,41 @@ export class CommercialGrowth{
   }
  }
  async assertConnection(user,id){const c=await this.store.getConnection(id);if(!c||c.company_id!==user.company_id||user.role!=='admin'&&!user.connections.includes(id))throw fail('Conexão indisponível.',403);return c;}
- async instructions(id){return '\nCATÁLOGO OPERACIONAL DE LINKS (somente desta conexão): '+JSON.stringify((await this.products(id)).filter(p=>p.enabled!==false).map(p=>({id:p.id,nome:p.name,testeConfirmado:p.trialConfirmed===true,condicoes:p.conditions})))+'\nQuando o cliente pedir para conhecer ou testar, use obter_link_produto e envie o endereço retornado sem novas perguntas obrigatórias. Se o teste não estiver confirmado, apresente como página para conhecer e ofereça liberação pela equipe. Nunca afirme cadastro concluído sem evento confirmado.';}
- async productLink(id,phone,input){const product=input?.produto?(await this.products(id)).find(p=>p.id===input.produto&&p.enabled!==false):await this.selection(id,phone);if(!product)return 'Produto ainda não identificado. Esclareça qual solução deseja conhecer, com uma pergunta curta.';const link=await this.makeLink(id,phone,product);if(!link)return 'Não foi possível gerar o link para este atendimento.';return JSON.stringify({produto:product.name,url:link.url,testeConfirmado:product.trialConfirmed===true,condicoes:product.conditions,primeiroPasso:product.trialConfirmed?product.firstStep:'A equipe precisa confirmar a liberação do teste.'});}
+ async instructions(id){return LEAD_NURTURING_GUIDANCE+'\nCATÁLOGO OPERACIONAL DE LINKS (somente desta conexão): '+JSON.stringify((await this.products(id)).filter(p=>p.enabled!==false).map(p=>({id:p.id,nome:p.name,testeConfirmado:p.trialConfirmed===true,cadastroPublicoConfirmado:p.officialSalesPage===true,condicoes:p.conditions,primeiroPasso:p.firstStep})))+'\nESTRATÉGIA ATUAL: PRIMEIRO CONHECER/TESTAR, DEPOIS TIRAR DÚVIDAS. Quando o produto estiver identificado e houver interesse em conhecer, use obter_link_produto e envie o endereço com um benefício e um primeiro passo, sem novas perguntas obrigatórias. Não conduza automaticamente para uma apresentação. Para cadastroPublicoConfirmado, envie a página oficial e siga o primeiroPasso e as condições específicos do produto, sem exigir liberação humana para abrir o cadastro. Não chame todo cadastro de gratuito: oficina pode apresentar contratação. Cadastro gratuito, quando indicado, não significa uso ou emissão grátis. Para os demais produtos, se o teste não estiver confirmado, apresente como página para conhecer e ofereça liberação pela equipe; não chame login ou página comercial de teste liberado. Depois que o cliente explorar, ofereça ajuda para começar e uma conversa de tira-dúvidas com vendedor, por aceite, se for útil. Não repita o link a cada mensagem nem condicione atendimento humano a testar antes. Cliente disponível agora, querendo comprar ou pedindo pessoa humana tem prioridade imediata. Pedido explícito de reunião pode ser agendado mesmo sem teste. Continue acompanhando o lead após o link, sem presumir cadastro ou uso por clique: confirme apenas eventos reais ou o que o cliente informou, distinguindo as fontes.';}
+ async productLink(id,phone,input){const product=input?.produto?(await this.products(id)).find(p=>p.id===input.produto&&p.enabled!==false):await this.selection(id,phone);if(!product)return 'Produto ainda não identificado. Esclareça qual solução deseja conhecer, com uma pergunta curta.';const link=await this.makeLink(id,phone,product);if(!link)return 'Não foi possível gerar o link para este atendimento.';return JSON.stringify({produto:product.name,url:link.url,tipoLink:product.presentationEnabled?'pagina_produto':'destino_configurado',testeConfirmado:product.trialConfirmed===true,condicoes:product.conditions,cadastroPublicoConfirmado:product.officialSalesPage===true,primeiroPasso:product.trialConfirmed||product.officialSalesPage===true?product.firstStep:'A equipe precisa confirmar a liberação do teste.'});}
  landingUrl(id,product){return this.config.publicUrl+'/conhecer/'+encodeURIComponent(id)+'/'+product.id;}
- async publicPage(id,productId,ref){
+ async publicPage(id,productId,ref,requestedFocus=''){
   const c=await this.store.getConnection(id),products=await this.products(id),product=products.find(p=>p.id===productId&&p.enabled!==false);if(!c?.enabled||!c.company_active||!product)throw fail('Página indisponível.',404);
-  const company=(await this.store.pool.query('SELECT name FROM companies WHERE id=$1',[c.company_id])).rows[0],related=[];
-  if(product.id==='solucoes'){
-   const origin=uuid(ref)?(await this.store.pool.query('SELECT phone FROM commercial_links WHERE id=$1 AND connection_id=$2 AND product_id=$3 AND expires_at>now()',[ref,id,product.id])).rows[0]:null;
-   for(const p of products.filter(p=>p.enabled!==false&&p.id!=='solucoes')){const linked=origin?await this.makeLink(id,origin.phone,p):null;related.push({name:p.name,url:linked?.url||this.landingUrl(id,p)});}
+  const curated=c.company_id==='default',content=commercialContent(product,curated);
+  const origin=uuid(ref)?(await this.store.pool.query('SELECT phone FROM commercial_links WHERE id=$1 AND connection_id=$2 AND product_id=$3 AND expires_at>now()',[ref,id,product.id])).rows[0]:null;
+  let focusId=content.focus.some(f=>f.id===requestedFocus)?requestedFocus:'';
+  if(!focusId&&origin){
+   const lead=await this.store.scope(id).getLead(origin.phone),normalize=text=>String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+   const need=normalize([lead?.dor_principal,lead?.produtos_interesse].filter(v=>typeof v==='string').join(' ').slice(0,1500));
+   const found=content.focus.map(f=>({id:f.id,score:normalize(f.title).split(/\W+/).filter(w=>w.length>3&&need.includes(w)).length})).sort((a,b)=>b.score-a.score)[0];if(found?.score)focusId=found.id;
   }
-  return commercialPage({product,companyName:c.company_id==='default'?((product.family||PRODUCT_SEEDS.find(s=>s.id===product.id)?.family)==='cilos'?'Cilos':'Command System'):company.name,phone:String(c.display_phone||'').replace(/\D/g,''),ref:uuid(ref)?ref:null,related});
+  const related=[];
+  if(['solucoes','erp'].includes(product.id))for(const p of products.filter(p=>p.enabled!==false&&p.id!==product.id&&p.id!=='solucoes')){
+   const linked=origin?await this.makeLink(id,origin.phone,p):null;related.push({name:p.name,benefit:p.benefit,url:linked?.url||'/conhecer/'+encodeURIComponent(id)+'/'+p.id});
+  }
+  const demos=(await this.store.pool.query(`SELECT id,data->>'title' AS title,data->>'summary' AS summary,data->>'youtubeId' AS "youtubeId" FROM demonstration_videos WHERE connection_id=$1 AND (product_id=$2 OR data->'productIds' ? $2) AND published ORDER BY updated_at DESC LIMIT 3`,[id,product.id])).rows.map(d=>({...d,url:'/demonstracoes/'+d.id}));
+  const company=(await this.store.pool.query('SELECT name FROM companies WHERE id=$1',[c.company_id])).rows[0];
+  return commercialPage({product:{...product,family:product.family||PRODUCT_SEEDS.find(p=>p.id===product.id)?.family},companyName:curated?((product.family||PRODUCT_SEEDS.find(s=>s.id===product.id)?.family)==='cilos'?'Cilos':'Command System'):company.name,phone:String(c.display_phone||'').replace(/\D/g,''),ref:origin?ref:null,curated,focusId,related,demos,eventPath:'/conhecer/'+encodeURIComponent(id)+'/'+product.id+'/events'});
  }
- async products(id){return (await this.store.pool.query('SELECT p.id,p.data,p.version,p.updated_at,EXISTS(SELECT 1 FROM commercial_integrations i WHERE i.connection_id=p.connection_id AND i.product_id=p.id) AS integration_ready FROM commercial_products p WHERE connection_id=$1 ORDER BY id',[id])).rows.map(r=>({...r.data,id:r.id,version:r.version,updatedAt:r.updated_at,integrationReady:r.integration_ready,landingUrl:this.landingUrl(id,{id:r.id}),gaps:productGaps({...r.data,salesUrl:r.data.salesUrl||this.landingUrl(id,{id:r.id}),integrationReady:r.integration_ready})}));}
+ async publicPageEvent(id,productId,body){
+  const types={view:'page_viewed',cta:'page_cta_clicked',focus:'page_focus_selected',faq:'page_faq_opened'},actions=['','trial','sales','contact','questions','steps','video','segment','faq'];
+  if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(k=>!['ref','sessionId','type','action','focus'].includes(k))||!uuid(body.ref)||!uuid(body.sessionId)||!Object.hasOwn(types,body.type)||!actions.includes(body.action)||typeof body.focus!=='string')throw fail('Evento de página inválido.');
+  return this.store.transaction(async tx=>{
+   await tx.pool.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['public-page:'+body.ref]);
+   const row=(await tx.pool.query(`SELECT l.phone,p.data,c.company_id FROM commercial_links l JOIN commercial_products p ON p.connection_id=l.connection_id AND p.id=l.product_id JOIN whatsapp_connections c ON c.id=l.connection_id JOIN companies e ON e.id=c.company_id JOIN leads v ON v.connection_id=l.connection_id AND v.phone=l.phone WHERE l.id=$1 AND l.connection_id=$2 AND l.product_id=$3 AND l.expires_at>now() AND c.enabled AND e.active AND COALESCE(p.data->>'enabled','true')<>'false' AND COALESCE(v.data->>'optedOut','false')<>'true' AND COALESCE(v.data->>'cadenceDeclined','false')<>'true'`,[body.ref,id,productId])).rows[0];
+   if(!row)return {ok:true,recorded:false};
+   const content=commercialContent({...row.data,id:productId},row.company_id==='default');if(!content.focus.some(f=>f.id===body.focus))throw fail('Foco de página inválido.');
+   const count=(await tx.pool.query("SELECT count(*)::int AS n FROM commercial_events WHERE connection_id=$1 AND phone=$2 AND product_id=$3 AND occurred_at>now()-interval '1 minute' AND kind IN ('page_viewed','page_cta_clicked','page_focus_selected','page_faq_opened')",[id,row.phone,productId])).rows[0].n;if(count>=30)return {ok:true,recorded:false};
+   const eventId=['page',body.ref,body.sessionId,body.type,body.action,body.focus].join(':');
+   const inserted=await tx.pool.query('INSERT INTO commercial_events(connection_id,phone,product_id,event_id,kind,occurred_at,data) VALUES($1,$2,$3,$4,$5,now(),$6) ON CONFLICT DO NOTHING RETURNING id',[id,row.phone,productId,eventId,types[body.type],{ref:body.ref,focus:body.focus,action:body.action}]);return {ok:true,recorded:!!inserted.rowCount};
+  });
+ }
+ async products(id){return (await this.store.pool.query('SELECT p.id,p.data,p.version,p.updated_at,c.company_id,EXISTS(SELECT 1 FROM commercial_integrations i WHERE i.connection_id=p.connection_id AND i.product_id=p.id) AS integration_ready FROM commercial_products p JOIN whatsapp_connections c ON c.id=p.connection_id WHERE p.connection_id=$1 ORDER BY p.id',[id])).rows.map(r=>({...r.data,id:r.id,version:r.version,updatedAt:r.updated_at,integrationReady:r.integration_ready,officialSalesPage:r.company_id==='default'&&Object.hasOwn(APPROVED_OFFICIAL_PAGES,r.id)&&r.data.salesUrl===APPROVED_OFFICIAL_PAGES[r.id],presentationEnabled:r.company_id==='default'&&!(Object.hasOwn(APPROVED_OFFICIAL_PAGES,r.id)&&r.data.salesUrl===APPROVED_OFFICIAL_PAGES[r.id]),landingUrl:this.landingUrl(id,{id:r.id}),gaps:productGaps({...r.data,salesUrl:r.data.salesUrl||this.landingUrl(id,{id:r.id}),integrationReady:r.integration_ready})}));}
  async saveProduct(id,body,user){await this.assertConnection(user,id);if(user.role!=='admin')throw fail('Somente administradores alteram o catálogo.',403);let data;try{data=validateProduct(body);}catch(e){throw fail(e.message);}
   const result=await this.store.pool.query('INSERT INTO commercial_products(connection_id,id,data) VALUES($1,$2,$3) ON CONFLICT(connection_id,id) DO UPDATE SET data=excluded.data,version=commercial_products.version+1,updated_at=now() WHERE commercial_products.version=$4 RETURNING version',[id,data.id,data,body.version||0]);if(!result.rowCount)throw fail('O produto foi alterado. Atualize antes de salvar.',409);
   await this.store.scope(id).audit('commercial_product_saved',user.id,{productId:data.id,version:result.rows[0].version});return (await this.products(id)).find(p=>p.id===data.id);
@@ -72,7 +102,7 @@ export class CommercialGrowth{
  async makeLink(id,phone,product){
   if(!product||product.enabled===false)return null;
   const lead=await this.store.scope(id).getLead(phone);if(!lead||lead.optedOut||lead.cadenceDeclined||lead.conversationClosed||['ganho','perdido'].includes(lead.resultado))return null;
-  const token=crypto.randomUUID();await this.store.pool.query('INSERT INTO commercial_links(id,connection_id,phone,product_id,destination) VALUES($1,$2,$3,$4,$5)',[token,id,phone,product.id,product.trialConfirmed?product.trialUrl:product.salesUrl||this.landingUrl(id,product)]);
+  const token=crypto.randomUUID();await this.store.pool.query('INSERT INTO commercial_links(id,connection_id,phone,product_id,destination) VALUES($1,$2,$3,$4,$5)',[token,id,phone,product.id,product.presentationEnabled?this.landingUrl(id,product):product.trialConfirmed?product.trialUrl:product.salesUrl||this.landingUrl(id,product)]);
   return {token,url:this.config.publicUrl+'/t/'+token};
  }
  async recordLinksSent(id,phone,text){
@@ -80,11 +110,11 @@ export class CommercialGrowth{
   for(const token of tokens.filter(uuid))await this.store.pool.query("INSERT INTO commercial_events(connection_id,phone,product_id,event_id,kind,occurred_at) SELECT connection_id,phone,product_id,$4,'link_sent',now() FROM commercial_links WHERE id=$1 AND connection_id=$2 AND phone=$3 ON CONFLICT DO NOTHING",[token,id,phone,'sent:'+token]);
  }
  async redirect(token){
-  if(!uuid(token))throw fail('Link inválido.',404);const row=(await this.store.pool.query('SELECT l.*,p.data,c.enabled,e.active FROM commercial_links l JOIN commercial_products p ON p.connection_id=l.connection_id AND p.id=l.product_id JOIN whatsapp_connections c ON c.id=l.connection_id JOIN companies e ON e.id=c.company_id WHERE l.id=$1 AND l.expires_at>now()',[token])).rows[0];
-  if(!row||!row.enabled||!row.active||row.data.enabled===false||(row.data.trialConfirmed?row.data.trialUrl:row.data.salesUrl||this.landingUrl(row.connection_id,{id:row.product_id}))!==row.destination)throw fail('Este link não está mais disponível.',410);
+  if(!uuid(token))throw fail('Link inválido.',404);const row=(await this.store.pool.query('SELECT l.*,p.data,c.enabled,c.company_id,e.active FROM commercial_links l JOIN commercial_products p ON p.connection_id=l.connection_id AND p.id=l.product_id JOIN whatsapp_connections c ON c.id=l.connection_id JOIN companies e ON e.id=c.company_id WHERE l.id=$1 AND l.expires_at>now()',[token])).rows[0];
+  if(!row||!row.enabled||!row.active||row.data.enabled===false||![this.landingUrl(row.connection_id,{id:row.product_id}),row.data.trialConfirmed?row.data.trialUrl:row.data.salesUrl].filter(Boolean).includes(row.destination))throw fail('Este link não está mais disponível.',410);
   // Visita observada, não prova de clique humano: verificadores de links também acessam URLs.
   await this.store.pool.query("INSERT INTO commercial_events(connection_id,phone,product_id,event_id,kind,occurred_at) VALUES($1,$2,$3,$4,'link_accessed',now()) ON CONFLICT DO NOTHING",[row.connection_id,row.phone,row.product_id,'access:'+token]);
-  const destination=new URL(row.destination);destination.searchParams.set('commercial_ref',token);return destination.href;
+  const official=row.company_id==='default'&&!row.data.trialConfirmed&&Object.hasOwn(APPROVED_OFFICIAL_PAGES,row.product_id)&&row.data.salesUrl===APPROVED_OFFICIAL_PAGES[row.product_id];const destination=new URL(official?row.data.salesUrl:row.destination);destination.searchParams.set('commercial_ref',token);return destination.href;
  }
  async rotateIntegration(id,productId,user){await this.assertConnection(user,id);if(user.role!=='admin')throw fail('Acesso restrito.',403);if(!(await this.products(id)).some(p=>p.id===productId))throw fail('Produto inexistente.',404);const secret=crypto.randomBytes(32).toString('hex');await this.store.pool.query('INSERT INTO commercial_integrations(connection_id,product_id,secret_cipher) VALUES($1,$2,$3) ON CONFLICT(connection_id,product_id) DO UPDATE SET secret_cipher=excluded.secret_cipher',[id,productId,encryptSecret(secret,this.config.connectionsKey)]);await this.store.scope(id).audit('commercial_integration_rotated',user.id,{productId});return {secret,url:this.config.publicUrl+'/product-events/'+encodeURIComponent(id)+'/'+productId};}
  async receiveEvent(id,productId,raw,headers){
@@ -131,6 +161,8 @@ export class CommercialGrowth{
   const metrics=(await this.store.pool.query(`SELECT e.product_id,
    count(DISTINCT e.phone) FILTER(WHERE e.kind='link_sent')::int AS links_sent,
    count(DISTINCT e.phone) FILTER(WHERE e.kind='link_accessed')::int AS link_accesses,
+   count(DISTINCT e.phone) FILTER(WHERE e.kind='page_viewed')::int AS page_views,
+   count(DISTINCT e.phone) FILTER(WHERE e.kind='page_cta_clicked')::int AS cta_clicks,
    count(DISTINCT e.phone) FILTER(WHERE e.kind='signup_completed')::int AS signups,
    count(DISTINCT e.phone) FILTER(WHERE e.kind='activation_completed')::int AS activations,
    count(DISTINCT e.phone) FILTER(WHERE e.kind='subscription_started')::int AS subscriptions
@@ -168,12 +200,12 @@ export class CommercialGrowth{
  }
  async telegramTick(){
   // Claim persistente: em timeout, não repetir envio incerto automaticamente.
-  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND n.kind IN ('assignment','sales_priority','sales_overdue','product_activity') AND (n.kind IN ('assignment','product_activity') OR r.manager) AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
+  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND n.kind IN ('assignment','sales_priority','sales_overdue','product_activity','support_request') AND (n.kind IN ('assignment','product_activity','support_request') OR r.manager) AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
   for(const n of rows){const c=await this.store.getConnection(n.connection_id),u=(await this.store.pool.query('SELECT * FROM users WHERE id=$1 AND active AND company_id=$2',[n.user_id,n.company_id])).rows[0];if(!c?.enabled||!c.company_active||!u)continue;
    const user=await resolveAccess(this.store.pool,{...u,connections:(await this.store.pool.query('SELECT connection_id FROM user_connections WHERE user_id=$1',[u.id])).rows.map(r=>r.connection_id)}),lead=await this.store.scope(n.connection_id).getLead(n.phone);
-   if(!lead||lead.optedOut||lead.conversationClosed||['ganho','perdido'].includes(lead.resultado)||!can(user,'conversations.view')||user.role!=='admin'&&!user.connections.includes(n.connection_id)||!canSeeLead(user,lead))continue;
+   if(!lead||lead.optedOut||lead.conversationClosed||n.kind!=='support_request'&&['ganho','perdido'].includes(lead.resultado)||!can(user,'conversations.view')||user.role!=='admin'&&!user.connections.includes(n.connection_id)||!canSeeLead(user,lead))continue;
    const claim=await this.store.pool.query("INSERT INTO commercial_telegram_deliveries(notification_id,user_id,status) VALUES($1,$2,'sending') ON CONFLICT DO NOTHING RETURNING notification_id",[n.id,n.user_id]);if(!claim.rowCount)continue;
-   try{const token=decryptSecret(n.token_cipher,this.config.connectionsKey),chat=decryptSecret(n.chat_cipher,this.config.connectionsKey),text=n.kind==='product_activity'?'Há uma atualização de cadastro ou uso de um produto. Abra o atendimento para acompanhar.':n.kind==='sales_overdue'?'Um atendimento comercial ultrapassou o prazo. Abra o painel para conferir.':n.kind==='sales_priority'?'Um cliente pediu atendimento humano agora. Abra o painel para assumir.':'Um novo lead foi vinculado a você.';
+   try{const token=decryptSecret(n.token_cipher,this.config.connectionsKey),chat=decryptSecret(n.chat_cipher,this.config.connectionsKey),text=n.kind==='support_request'?'Um cliente solicitou suporte técnico. Abra o atendimento para conferir o pedido.':n.kind==='product_activity'?'Há uma atualização de cadastro ou uso de um produto. Abra o atendimento para acompanhar.':n.kind==='sales_overdue'?'Um atendimento comercial ultrapassou o prazo. Abra o painel para conferir.':n.kind==='sales_priority'?'Um cliente pediu atendimento humano agora. Abra o painel para assumir.':'Um novo lead foi vinculado a você.';
     const response=await this.fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text,reply_markup:{inline_keyboard:[[{text:'Abrir atendimento',url:this.config.publicUrl+'/?notification='+n.id}]]},protect_content:true}),signal:AbortSignal.timeout(10000)});const result=await response.json();await this.store.pool.query('UPDATE commercial_telegram_deliveries SET status=$3,updated_at=now() WHERE notification_id=$1 AND user_id=$2',[n.id,n.user_id,response.ok&&result.ok?'accepted':'failed']);
    }catch{await this.store.pool.query("UPDATE commercial_telegram_deliveries SET status='uncertain',updated_at=now() WHERE notification_id=$1 AND user_id=$2",[n.id,n.user_id]);}
   }

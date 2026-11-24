@@ -24,3 +24,7 @@ CREATE TABLE IF NOT EXISTS agenda_bookings (
 CREATE UNIQUE INDEX IF NOT EXISTS agenda_one_uncertain_idx ON agenda_bookings(connection_id,phone) WHERE status IN ('sending','uncertain');
 ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS cancellation_requested_at timestamptz;
 ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS cancellation_message_id text;
+ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS reschedule_requested_at timestamptz;
+ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS reschedule_request jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE agenda_bookings ADD COLUMN IF NOT EXISTS rescheduled_from uuid REFERENCES agenda_bookings(id);
+ALTER TABLE agenda_offers ADD COLUMN IF NOT EXISTS replaces_booking_id uuid REFERENCES agenda_bookings(id);

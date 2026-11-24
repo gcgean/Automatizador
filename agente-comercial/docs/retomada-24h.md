@@ -15,3 +15,16 @@ O histórico registra texto final, responsável e modelo; a fila mantém falhas/
 ## Verificação de cadência
 
 A cadência automática exige habilitação, modelo MARKETING aprovado sem campos dinâmicos, lead elegível com pergunta pendente e autorização de acompanhamento registrada. Habilitar a função não concede autorização aos contatos existentes. Sem autorização o estado é consent_required, sem tentativas de envio. Ao registrar autorização nos dados do lead, o sistema reavalia a última pergunta; atendimento humano, recusa ou encerramento continuam impedindo a programação. A retomada manual não habilita nem autoriza a cadência automática.
+
+<!-- followup-refusal-fix-2026-11-23:start -->
+## Recusa de acompanhamento e respostas negativas
+
+Um “não” isolado sobre CNPJ, certificado, recurso ou disponibilidade não é recusa geral de contato. A negativa curta só registra recusa quando responde a uma pergunta explícita sobre autorização de acompanhamento. Pedidos claros para parar continuam bloqueando a retomada.
+
+Marcações antigas ambíguas podem ser corrigidas com histórico de auditoria. A correção não concede autorização, não envia mensagem, não reabre conversa finalizada e não reativa a cadência. Mantém acompanhamento automático pausado para revisão. O vendedor pode usar um modelo aprovado com confirmação da autorização para aquele contato; isso não autoriza a cadência. Nova autorização confirmada nos dados do lead remove a pendência de revisão. A janela de atendimento do WhatsApp permanece independente dessa classificação.
+<!-- followup-refusal-fix-2026-11-23:end -->
+
+<!-- manual-send-window-fix-2026-11-23:start -->
+### Envio do vendedor quando a janela encerra
+O botão de enviar utiliza a conexão validada do atendimento para preparar a retomada com um modelo aprovado da mesma WABA. Fora da janela, o texto livre permanece no rascunho e só pode seguir depois da resposta do cliente; a retomada não envia esse texto livre como se fosse um modelo. Sem modelo compatível, com recusa real ou com pendência anterior, a plataforma informa o bloqueio. A correção da rota evita o erro genérico ao tentar iniciar essa retomada e preserva as permissões do vendedor e a separação entre conexões.
+<!-- manual-send-window-fix-2026-11-23:end -->
