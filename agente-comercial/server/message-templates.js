@@ -1,3 +1,4 @@
+import {latestTemplates} from './template-versions.js';
 import crypto from 'node:crypto';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const placeholders=text=>[...new Set([...String(text||'').matchAll(/\{\{\s*([\w]+)\s*\}\}/g)].map(m=>m[1]))];
@@ -35,6 +36,6 @@ export class TemplateCatalog{
    if(!Array.isArray(data.data))throw fail('A Meta retornou uma lista de modelos incompleta.',502);all.push(...data.data);
    if(!data.paging?.next)break;cursor=data.paging.cursors?.after;if(!cursor||seen.has(cursor)||page===19)throw fail('A lista de modelos ficou incompleta. Tente novamente.',502);seen.add(cursor);
   }
-  return all.filter(t=>t.status==='APPROVED').map(describeTemplate).sort((a,b)=>a.name.localeCompare(b.name)||a.language.localeCompare(b.language));
+  return latestTemplates(all.filter(t=>t.status==='APPROVED')).map(describeTemplate).sort((a,b)=>a.name.localeCompare(b.name)||a.language.localeCompare(b.language));
  }
 }

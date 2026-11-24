@@ -9,7 +9,8 @@ import {UNDELIVERABLE_MESSAGE} from './undeliverable.js';
 const fail=(message,status=409)=>Object.assign(new Error(message),{status});
 // Modelo com um único campo livre no corpo: quando aprovado pela Meta, leva a mensagem digitada mesmo fora da janela de 24h.
 export const CUSTOM_OPENING_TEMPLATE='abertura_personalizada_v1';
-export function customOpeningTemplate(templates,language='pt_BR'){return templates.find(t=>t.name===CUSTOM_OPENING_TEMPLATE&&t.supported&&t.language===language&&!t.header&&t.fields.length===1&&t.fields[0].id==='body:1')||null;}
+// Aceita o formato completo do catálogo e o formato simples da cadência ({name,language,body}); prefere a versão mais nova.
+export function customOpeningTemplate(templates,language='pt_BR'){return templates.filter(t=>/^abertura_personalizada_v\d+$/.test(t.name)&&t.supported!==false&&t.language===language&&!t.header&&(t.fields?t.fields.length===1&&t.fields[0].id==='body:1':(String(t.body||'').match(/\{\{[^}]*\}\}/g)||[]).join()==='{{1}}')).sort((a,b)=>Number(b.name.split('_v').pop())-Number(a.name.split('_v').pop()))[0]||null;}
 // Variável de modelo não aceita quebra de linha nem tabulação; vira uma linha só.
 export const singleLine=text=>String(text||'').replace(/\s*[\r\n\t]+\s*/g,' ').replace(/ {2,}/g,' ').trim();
 // O modelo de texto livre já cumprimenta e apresenta a empresa; tira do começo do texto digitado só frases que repetiriam isso.
