@@ -99,3 +99,5 @@ CREATE TABLE IF NOT EXISTS youtube_comments(connection_id text NOT NULL REFERENC
 CREATE INDEX IF NOT EXISTS youtube_comments_author_idx ON youtube_comments(connection_id,author_key,published_at DESC);
 
 ALTER TABLE whatsapp_connections ADD COLUMN IF NOT EXISTS primary_department_id uuid REFERENCES departments(id);
+-- Pedidos de página comercial que falta, registrados pela HELENA (um por contato).
+CREATE TABLE IF NOT EXISTS page_requests (id uuid PRIMARY KEY, connection_id text NOT NULL, phone text NOT NULL, need text NOT NULL, segment text, suggestion text NOT NULL, status text NOT NULL DEFAULT 'new', notified_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(connection_id,phone));
