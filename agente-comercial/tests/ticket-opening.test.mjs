@@ -34,6 +34,7 @@ test('abertura: prévia não grava, autorização, fila única, recusa e IA agua
  await assert.rejects(opening.start({...input,fingerprint:preview.template.fingerprint},actor),/autorizou/);assert.equal(await store.getLead(phone),null);
  await assert.rejects(opening.start({...input,consentConfirmed:true,fingerprint:'changed'},actor),/mudou/);assert.equal(await store.getLead(phone),null);
  const request={...input,consentConfirmed:true,fingerprint:preview.template.fingerprint},opened=await opening.start(request,actor);assert.equal(opened.queued,true);assert.equal(opened.lead.status,'em_conversa');assert.equal(opened.lead.assignedUserId,false);assert.notEqual(opened.lead.cadenceConsent,true);
+ assert.equal((await store.getEvents(phone)).filter(e=>e.kind==='handoff').length,0,'abrir chamado não é transferência e não gera aviso');
  const repeated=await opening.start(request,actor);assert.equal(repeated.reused,true);await (await registry.runtime('default')).inbox.drain();assert.equal(sent.length,1);assert.equal(sent[0].type,'template');assert.equal(sent[0].template.name,model.name);
  await assert.rejects(opening.start({...request,requestId:crypto.randomUUID()},actor),/já foi enviado/);
  await store.updateLead(phone,{cadenceDeclined:true});await assert.rejects(opening.preview(input,actor),/recusa/);

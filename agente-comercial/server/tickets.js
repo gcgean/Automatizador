@@ -96,7 +96,8 @@ export async function transferTicket(store,phone,body,person,user){
   if(!person&&!department)throw fail('Escolha um setor ou um atendente.');
   await tx.pool.query("SELECT set_config('app.ticket_actor',$1,true)",[user.id]);
   await tx.updateLead(phone,{status:'encaminhado',humanControlId:crypto.randomUUID(),assignedUserId:person?.id||false,assignedUserName:person?.name||person?.email||false,departmentId:department?.id||false});
-  await tx.recordEvent({id:crypto.randomUUID(),phone,direction:'out',actor:'system',kind:'handoff',state:'internal',text:'Chamado transferido para '+[department?.name,person?.name||person?.email||'fila do setor'].filter(Boolean).join(' · ')+'.'});
+  // O aviso na conversa só aparece em transferência feita por uma pessoa; a atribuição ao abrir um chamado novo não é transferência.
+  if(!body.opening)await tx.recordEvent({id:crypto.randomUUID(),phone,direction:'out',actor:'system',kind:'handoff',state:'internal',text:'Chamado transferido para '+[department?.name,person?.name||person?.email||'fila do setor'].filter(Boolean).join(' · ')+'.'});
   await tx.audit('ticket_transferred',user.id,{phone,assignedUserId:person?.id,departmentId:department?.id});
   return {ok:true};
  });

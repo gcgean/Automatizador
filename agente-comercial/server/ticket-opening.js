@@ -77,7 +77,7 @@ export class TicketOpening{
   if(!department||person&&!(await this.store.pool.query('SELECT 1 FROM department_users WHERE department_id=$1 AND user_id=$2',[department.id,person.id])).rowCount)throw fail('Escolha um setor permitido e um responsável vinculado.',400);
   if(!r.lead)await this.contacts.save(r.id,{phone:r.phone,name:body.name},r.user);
   const lead=await this.contacts.open(r.id,r.phone,r.user,r.runtime.inbox.jobs);
-  await transferTicket(r.scoped,r.phone,{departmentId:department.id,ticketId:lead.ticketId},person,r.user);
+  await transferTicket(r.scoped,r.phone,{departmentId:department.id,ticketId:lead.ticketId,opening:true},person,r.user);
   const openedControl=(await r.scoped.getLead(r.phone)).humanControlId;
   await this.cadence.stop(r.id,r.phone,'Chamado aberto pela equipe');
   if(r.windowOpen){

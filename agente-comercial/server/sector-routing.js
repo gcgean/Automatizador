@@ -14,6 +14,6 @@ export async function routeSector(store,phone,input,turn){
  if(Object.hasOwn(turn,'controlBefore')&&lead.humanControlId!==turn.controlBefore)throw new Error('O controle do atendimento mudou.');
  const sector=(await tx.pool.query('SELECT d.id,d.name FROM departments d JOIN department_connections dc ON dc.department_id=d.id JOIN whatsapp_connections c ON c.id=dc.connection_id WHERE c.id=$1 AND d.id=$2 AND d.active AND d.company_id=c.company_id AND c.primary_department_id IS NOT NULL',[store.connectionId,input.departmentId])).rows[0];
  if(!sector)throw new Error('Setor não permitido para esta conexão.');if(lead.departmentId===sector.id)return 'O atendimento já está no setor '+sector.name+'.';
- await tx.updateLead(phone,{departmentId:sector.id});await tx.recordEvent({id:crypto.randomUUID(),phone,direction:'out',actor:'system',kind:'handoff',state:'internal',text:'Setor alterado automaticamente pela IA para '+sector.name+'. Motivo: '+input.reason.trim()});await tx.audit('ai_department_changed',null,{phone,from:lead.departmentId,to:sector.id,reason:input.reason.trim()});return 'Setor alterado para '+sector.name+'. Continue atendendo; nenhum vendedor foi acionado por esta mudança.';
+ await tx.updateLead(phone,{departmentId:sector.id});await tx.audit('ai_department_changed',null,{phone,from:lead.departmentId,to:sector.id,reason:input.reason.trim()});return 'Setor alterado para '+sector.name+'. Continue atendendo; nenhum vendedor foi acionado por esta mudança.';
  });turn.departmentRouted=true;return result;
 }
