@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import {SalesAgent} from './agent.js';
 import {DurableInbox} from './inbox.js';
 import {WhatsAppClient,extractMessages,extractStatuses,verifySignature} from './whatsapp.js';
+import {markUndeliverable,clearUndeliverable} from './undeliverable.js';
 import {InstagramClient,extractInstagram,instagramAccounts,storeInstagramMedia,igBase} from './instagram.js';
 import {YouTubeClient} from './youtube.js';
 import {encryptSecret,decryptSecret} from './secrets.js';
@@ -41,7 +42,7 @@ export class ConnectionRegistry{
   const matches=(await this.list()).filter(c=>(payload.entry||[]).some(e=>(e.changes||[]).some(change=>change.value?.metadata?.phone_number_id===c.phoneNumberId)));
   if(!matches.length){for(const c of await this.list()){if(verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))return;}throw Object.assign(new Error('invalid signature'),{status:401});}
   for(const c of matches){if(!verifySignature(raw,signature,(await this.configFor(c.id)).appSecret))throw Object.assign(new Error('invalid signature'),{status:401});}
-  for(const c of matches){const runtime=await this.runtime(c.id);if(c.coexistence)await receiveBusinessApp(runtime.store,payload,c.phoneNumberId,this.media);if(this.calling)await this.calling.receive(c.id,payload,c.phoneNumberId);for(const status of extractStatuses(payload,c.phoneNumberId))await runtime.store.recordDelivery(status);for(const message of extractMessages(payload,c.phoneNumberId)){if(this.meta)await this.meta.capture(c.id,message);await runtime.inbox.accept({...message,connectionId:c.id});}}
+  for(const c of matches){const runtime=await this.runtime(c.id);if(c.coexistence)await receiveBusinessApp(runtime.store,payload,c.phoneNumberId,this.media);if(this.calling)await this.calling.receive(c.id,payload,c.phoneNumberId);for(const status of extractStatuses(payload,c.phoneNumberId)){await runtime.store.recordDelivery(status);try{await markUndeliverable(runtime.store,status);}catch{}}for(const message of extractMessages(payload,c.phoneNumberId)){try{await clearUndeliverable(runtime.store,message.from);}catch{}if(this.meta)await this.meta.capture(c.id,message);await runtime.inbox.accept({...message,connectionId:c.id});}}
  }
  // Webhook do Instagram (object=instagram): mesma assinatura do app, contas pelo ID do Instagram.
  async receiveInstagram(payload,raw,signature){

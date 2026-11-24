@@ -5,7 +5,7 @@ import './delivery.css';
 export function DeliveryFailure({event}){
  const errors=event.delivery?.errors||[];
  if(!errors.length&&!event.error)return null;
- return <small className="error" role="status">{errors.length?errors.map(e=>{const code=Number(e.code);return (Number.isFinite(code)?'Meta '+code+': ':'')+(code===131049?'A Meta limitou a entrega deste modelo de marketing.':code===131047?'Janela encerrada. Envie um modelo aprovado.':e.message||e.title||'Falha na entrega.');}).join(' '):event.error}</small>;
+ return <small className="error" role="status">{errors.length?errors.map(e=>{const code=Number(e.code);return (Number.isFinite(code)?'Meta '+code+': ':'')+(code===131049?'A Meta limitou a entrega deste modelo de marketing.':code===131047?'Janela encerrada. Envie um modelo aprovado.':code===131026?'Número sem WhatsApp ou não alcançável. Confirme o número com o cliente ou ligue.':e.message||e.title||'Falha na entrega.');}).join(' '):event.error}</small>;
 }
 export function ConversationDelivery({phone,jobs,action,busy,canResolve}){
  const {blocking,queued}=deliveryActivity(jobs,phone);if(!blocking)return null;

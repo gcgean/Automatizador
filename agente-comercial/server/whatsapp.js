@@ -86,7 +86,7 @@ export class WhatsAppClient {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const detail = data?.error?.message ?? `HTTP ${response.status}`;
-      const code=data?.error?.code,explanation=Number(code)===131049?'A Meta limitou a entrega deste modelo de marketing.':Number(code)===131047?'A janela de atendimento está encerrada; use um modelo aprovado.':'';
+      const code=data?.error?.code,explanation=Number(code)===131049?'A Meta limitou a entrega deste modelo de marketing.':Number(code)===131047?'A janela de atendimento está encerrada; use um modelo aprovado.':Number(code)===131026?'Número sem WhatsApp ou não alcançável; confirme o número com o cliente.':'';
       const error = new Error(`WhatsApp API${Number.isInteger(code)?' ('+code+')':''}: ${explanation||detail}`);
       error.code = data?.error?.code;
       throw error;

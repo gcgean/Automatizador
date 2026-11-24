@@ -5,6 +5,7 @@ import {canSeeLead} from './conversation-access.js';
 import {blockingJob} from '../shared/delivery.js';
 import {chooseAutomaticTemplate} from './reengagement.js';
 import {transferTicket} from './tickets.js';
+import {UNDELIVERABLE_MESSAGE} from './undeliverable.js';
 const fail=(message,status=409)=>Object.assign(new Error(message),{status});
 // Modelo com um único campo livre no corpo: quando aprovado pela Meta, leva a mensagem digitada mesmo fora da janela de 24h.
 export const CUSTOM_OPENING_TEMPLATE='abertura_personalizada_v1';
@@ -39,6 +40,7 @@ export class TicketOpening{
   const found=await this.contacts.existing(id,phone),lead=found?.data;
   if(lead&&!canSeeLead(user,lead))throw fail('Contato indisponível para seu usuário.',403);
   if(lead?.optedOut||lead?.cadenceDeclined)throw fail('Contato bloqueado ou com recusa de acompanhamento registrada.');
+  if(lead?.undeliverableNumber)throw fail(UNDELIVERABLE_MESSAGE);
   const target=found?.phone||phone,scoped=this.store.scope(id),events=await scoped.getEvents(target),windowOpen=events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)>=0&&Date.now()-Date.parse(e.at)<86400000);
   const runtime=await this.registry.runtime(id);
   if(blockingJob(runtime.inbox.jobs,target))throw fail('Confira o envio pendente deste contato antes de iniciar outro.');

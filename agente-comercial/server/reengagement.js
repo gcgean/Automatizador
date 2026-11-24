@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {can} from '../shared/access.js';
 import {blockingJob} from '../shared/delivery.js';
 import {TemplateCatalog,fillTemplate} from './message-templates.js';
+import {UNDELIVERABLE_MESSAGE} from './undeliverable.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 export class Reengagement{
  constructor(store,registry,cadence,auth){this.store=store;this.registry=registry;this.cadence=cadence;this.auth=auth;this.catalog=new TemplateCatalog(registry,{fetchImpl:cadence.fetch});}
@@ -10,6 +11,7 @@ export class Reengagement{
   if(!user||!can(user,'messages.send')||(!user.platform_admin&&user.company_id!==connection.company_id)||(user.role!=='admin'&&!user.connections.includes(id))||(user.role!=='admin'&&lead?.assignedUserId&&lead.assignedUserId!==user.id))throw fail('Atendimento indisponível para seu usuário.',403);
   if(lead?.conversationClosed)throw fail('Conversa finalizada. Reabra antes de enviar um modelo.',409);
   if(!lead||lead.optedOut||lead.cadenceDeclined)throw fail('Contato bloqueado ou com recusa de acompanhamento registrada.',409);
+  if(lead.undeliverableNumber)throw fail(UNDELIVERABLE_MESSAGE,409);
   if(!connection.enabled||!connection.company_active)throw fail('Empresa ou conexão pausada.',409);
   const events=await scoped.getEvents(phone),open=events.some(e=>e.direction==='in'&&Date.now()-Date.parse(e.at)>=0&&Date.now()-Date.parse(e.at)<86400000);
   return {user,lead,scoped,open};
