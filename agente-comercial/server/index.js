@@ -245,6 +245,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
         const body=JSON.parse((await readBody(req)).toString());
         if(!available.some(c=>c.id===body.connectionId))return send(res,400,'Escolha um número disponível.');
         if(['/contacts/open-preview','/contacts/open-and-send'].includes(url.pathname)){if(!reengagement||!cadence)return send(res,503,'Envio por modelo indisponível.');const opening=new TicketOpening(rootStore,registry,reengagement,cadence,auth);return send(res,200,url.pathname==='/contacts/open-preview'?await opening.preview(body,currentUser):await opening.start(body,currentUser));}
+        if(url.pathname==='/contacts/improve-opening'){if(!textImprover)return send(res,503,'Melhoria com IA indisponível.');if(!can(currentUser,'messages.send'))return send(res,403,'Seu acesso não permite enviar mensagens.');return send(res,200,await textImprover.improveOpening(body.connectionId,body,currentUser));}
         if(url.pathname==='/contacts/save')return send(res,200,await contacts.save(body.connectionId,body,currentUser));
         if(url.pathname==='/contacts/import')return send(res,200,await contacts.import(body.connectionId,body.contacts,currentUser));
         const phone=String(body.phone||'');if(!/^\d{8,40}$/.test(phone))return send(res,400,'Contato inválido.');

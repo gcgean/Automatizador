@@ -39,3 +39,10 @@ test('próxima resposta usa histórico e contexto da conexão sem enviar e prote
  await assert.rejects(f.improver.improve('default','123',{text:'',mode:'next'},bob),{status:404});
  const r=await f.improver.improve('default','123',{text:'Seja breve',mode:'next'},alice);assert.equal(r.text,'Mensagem revisada.');const args=f.calls[0].args;assert.deepEqual(args.tools,[]);assert.match(args.system,/Produto de teste/);const input=JSON.parse(args.messages[0].content);assert.equal(input.historico[0].transcript,'Quero saber mais');assert.equal(input.orientacaoOpcional,'Seja breve');assert.deepEqual(f.audits,[]);
 });
+test('abertura: melhora a primeira mensagem sem exigir conversa, com limite e sem ferramentas',async()=>{
+ const f=fixture();f.setLead(null);
+ const result=await f.improver.improveOpening('default',{text:'oi tudo bem quero falar do sistema pra oficina',mode:'natural',purpose:'oficina'},alice);
+ assert.equal(result.text,'Mensagem revisada.');assert.deepEqual(f.calls[0].args.tools,[]);const input=JSON.parse(f.calls[0].args.messages[0].content);assert.equal(input.rascunho,'oi tudo bem quero falar do sistema pra oficina');assert.equal(input.objetivoDoContato,'oficina');assert.match(f.calls[0].args.system,/primeira mensagem/);
+ for(const body of [{text:'',mode:'natural'},{text:'x'.repeat(1001),mode:'natural'},{text:'oi',mode:'outro'},{text:'oi',mode:'short',purpose:'x'.repeat(501)}])await assert.rejects(f.improver.improveOpening('default',body,alice),{status:400});
+ const g=fixture(async()=>({text:'x'.repeat(1001)}));await assert.rejects(g.improver.improveOpening('default',{text:'oi',mode:'short'},alice),{status:502});
+});
