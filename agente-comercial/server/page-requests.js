@@ -2,6 +2,7 @@
 // e avisa os gestores no Telegram (bot e destinatários configurados em Crescimento comercial). Um aviso por contato.
 import crypto from 'node:crypto';
 import {decryptSecret} from './secrets.js';
+import {WANTS_SQL} from './telegram-alerts.js';
 const fail=message=>Object.assign(new Error(message),{status:400});
 const clean=(value,max)=>String(value??'').replace(/\s+/g,' ').trim().slice(0,max);
 
@@ -23,7 +24,7 @@ export function validatePageRequest(input){
 
 export async function telegramPageAlert(pool,config,{companyId,connectionName,need,segment,suggestion},fetchImpl=fetch){
  const bot=(await pool.query('SELECT token_cipher FROM commercial_telegram WHERE company_id=$1 AND enabled AND token_cipher IS NOT NULL',[companyId])).rows[0];if(!bot)return 0;
- const recipients=(await pool.query('SELECT r.chat_cipher FROM commercial_telegram_recipients r JOIN users u ON u.id=r.user_id AND u.active WHERE r.company_id=$1 AND r.manager',[companyId])).rows;
+ const recipients=(await pool.query("SELECT r.chat_cipher FROM commercial_telegram_recipients r JOIN users u ON u.id=r.user_id AND u.active WHERE r.company_id=$1 AND "+WANTS_SQL("'page_request'"),[companyId])).rows;
  const token=decryptSecret(bot.token_cipher,config.connectionsKey),text='Página que falta\nA HELENA atendeu um cliente sem página adequada no catálogo.\nNecessidade: '+need+(segment?'\nRamo: '+segment:'')+'\nSugestão de página: '+suggestion+(connectionName?'\nConexão: '+connectionName:'');
  let sent=0;
  for(const r of recipients){try{const response=await fetchImpl('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:decryptSecret(r.chat_cipher,config.connectionsKey),text,protect_content:true}),signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));if(response.ok&&data.ok)sent++;}catch{}}

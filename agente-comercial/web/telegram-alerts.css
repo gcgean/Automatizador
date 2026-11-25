@@ -1,0 +1,69 @@
+.tg-page{--tg:#229ed9;--tg-soft:#e6f4fb;--tg-ok:#15803d;--tg-ok-soft:#e8f7ee;--tg-warn:#b45309;--tg-warn-soft:#fff5e5;max-width:920px;display:grid;gap:16px}
+html[data-theme=dark] .tg-page{--tg:#5cc2f2;--tg-soft:#123040;--tg-ok:#5fd48a;--tg-ok-soft:#14301f;--tg-warn:#f2b45c;--tg-warn-soft:#3a2b12}
+.tg-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tg-head h2{margin:0;font-size:21px}.tg-head p{margin:2px 0 0}
+.tg-head>div:nth-child(2){flex:1;min-width:220px}
+.tg-head-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--tg);color:#fff;flex:none}
+.tg-chip,.tg-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px}
+.tg-chip::before,.tg-status::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.tg-chip.ok,.tg-status.ok{color:var(--tg-ok);background:var(--tg-ok-soft)}
+.tg-chip.wait,.tg-status.wait{color:var(--tg-warn);background:var(--tg-warn-soft)}
+.tg-chip.off,.tg-status.off{color:var(--ui-muted,#64748b);background:var(--ui-hover,#f1f5f9)}
+.tg-card{background:var(--ui-surface,#fff);border:1px solid var(--ui-border,#e2e8f0);border-radius:14px;padding:18px 20px;display:grid;gap:14px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.tg-card.disabled{opacity:.7}
+.tg-card-head{display:flex;gap:12px;align-items:flex-start}
+.tg-card-head h3{margin:0;font-size:16px}.tg-card-head p{margin:2px 0 0}
+.tg-step{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--tg);background:var(--tg-soft)}
+.tg-steps{margin:0;padding-left:20px;display:grid;gap:4px;font-size:13.5px}
+.tg-token{display:grid;gap:10px}
+.tg-token label{display:flex;align-items:center;gap:8px;border:1px solid var(--ui-border,#e2e8f0);border-radius:10px;padding:0 10px;background:var(--ui-input,#fff);color:var(--ui-muted,#64748b)}
+.tg-token label input{border:0;flex:1;min-width:0;background:transparent;box-shadow:none;outline:none;height:40px;padding:0;color:var(--ui-text,#0f172a)}
+.tg-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tg-row select,.tg-row input{flex:1;min-width:160px}
+.tg-page button.link{all:unset;cursor:pointer;color:var(--tg);font-size:13px;font-weight:600}
+.tg-page button.link:hover{text-decoration:underline}
+.tg-page button svg,.tg-page .button svg{vertical-align:-2px}
+.tg-switch{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13.5px}
+.tg-switch input{position:absolute;opacity:0;pointer-events:none}
+.tg-switch .track{width:40px;height:22px;border-radius:999px;background:var(--ui-border-strong,#b8c5d6);position:relative;flex:none;transition:background .15s}
+.tg-switch .track span{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tg-switch input:checked+.track{background:var(--tg-ok)}
+.tg-switch input:checked+.track span{transform:translateX(18px)}
+.tg-switch input:focus-visible+.track{outline:2px solid var(--tg);outline-offset:2px}
+.tg-people{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.tg-person{border:1px solid var(--ui-border,#e2e8f0);border-radius:12px;overflow:hidden}
+.tg-person.open{border-color:var(--tg)}
+.tg-person-row{display:flex;align-items:center;gap:12px;padding:10px 12px;flex-wrap:wrap}
+.tg-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:var(--tg);background:var(--tg-soft);flex:none}
+.tg-person-info{flex:1;min-width:180px;display:grid;gap:3px}
+.tg-person-info>strong{font-size:14px}
+.tg-person-info>span{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tg-badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ui-muted,#64748b)}
+.tg-badge.admin{color:var(--tg)}
+.tg-status{font-size:11.5px;padding:2px 8px}
+.tg-person-actions button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.tg-person .chev{transition:transform .15s}.tg-person.open .chev{transform:rotate(180deg)}
+.tg-link-box{margin:0 12px 12px;padding:12px;border-radius:10px;background:var(--tg-soft);display:grid;gap:8px;font-size:13px}
+.tg-link-box p{margin:0}
+.tg-link{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tg-link code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--ui-surface,#fff);border:1px solid var(--ui-border,#e2e8f0);border-radius:8px;padding:8px 10px;font-size:12.5px}
+.tg-link .button{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.tg-person-body{border-top:1px solid var(--ui-border,#e2e8f0);padding:12px;display:grid;gap:12px;background:var(--ui-surface-2,#f8fafc)}
+.tg-kinds-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:600}
+.tg-quick{display:flex;gap:12px}
+.tg-kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.tg-kinds fieldset{border:0;margin:0;padding:0;display:grid;gap:6px;align-content:start}
+.tg-kinds legend{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ui-muted,#64748b);margin-bottom:4px}
+.tg-kinds label{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--ui-border,#e2e8f0);border-radius:10px;background:var(--ui-surface,#fff);cursor:pointer;transition:border-color .12s,background .12s}
+.tg-kinds label.on{border-color:var(--tg);background:var(--tg-soft)}
+.tg-kinds label input{margin-top:2px;accent-color:var(--tg);width:16px;height:16px;flex:none}
+.tg-kinds label span{display:grid;gap:1px}
+.tg-kinds label strong{font-size:13px}
+.tg-kinds label small{font-size:11.5px;color:var(--ui-muted,#64748b)}
+.tg-person-foot{display:flex;gap:8px;flex-wrap:wrap}
+.tg-person-foot button{display:inline-flex;align-items:center;gap:6px}
+.tg-page button.danger{color:#b91c1c}
+html[data-theme=dark] .tg-page button.danger{color:#f87171}
+.tg-advanced summary{cursor:pointer;font-weight:600;font-size:14px}
+.tg-advanced[open]{gap:10px}
+@media(max-width:600px){.tg-card{padding:14px}.tg-person-actions{width:100%}.tg-person-actions button{width:100%;justify-content:center}.tg-head .tg-chip{order:3}}

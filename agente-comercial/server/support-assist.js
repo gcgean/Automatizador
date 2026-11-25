@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import {isAutomaticReply} from './automatic-reply.js';
 import {requestsOptOut} from './consent.js';
 import {SALES_GUIDANCE} from './sales-guidance.js';
+import {notifyOptIn} from './telegram-alerts.js';
 
 const MINUTE=60000;
 export function waitingTurn(events,now=new Date()){
@@ -80,6 +81,7 @@ export class SupportAssist{
   await s.scoped.recordEvent({id:crypto.randomUUID(),phone:ticket.phone,direction:'out',actor:'ai',kind:'reply_suggestion',state:'internal',text,suggestionFor:s.turn.last,assignedUserId:ticket.assigned_user_id});
   await this.store.pool.query("UPDATE support_assist_cycles SET status='suggested',mode=$3,updated_at=now() WHERE ticket_id=$1 AND anchor_id=$2",[...key,mode]);counts.suggested=(counts.suggested||0)+1;
   await s.scoped.audit('support_assist_suggested',null,{ticketId:ticket.id});
+  try{await notifyOptIn(this.store.pool,{companyId:s.connection.company_id,connectionId:ticket.connection_id,phone:ticket.phone,kind:'reply_suggestion',userIds:[ticket.assigned_user_id]});}catch{}
  }
  async close(){this.stopped=true;await this.running;}
 }

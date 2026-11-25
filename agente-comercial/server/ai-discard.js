@@ -2,6 +2,7 @@
 // (conversa pessoal/afetiva, spam, golpe, número errado, quem quer vender para a empresa...).
 // É o mesmo registro que a equipe faz no painel, com origem "ai" para dar para conferir e desfazer.
 const fail=message=>Object.assign(new Error(message),{status:400});
+import {notifyOptIn} from './telegram-alerts.js';
 export const AI_DISCARD_REASONS=['Fora do perfil','Spam ou contato inválido','Produto não atendido','Região não atendida'];
 
 export const DISCARD_TOOL={name:'descartar_lead',strict:true,
@@ -25,7 +26,7 @@ export function validateDiscard(lead,input){
 }
 
 export async function discardByAi(store,phone,input){
- return store.transaction(async tx=>{
+ const result=await store.transaction(async tx=>{
   const {rows:[row]}=await tx.pool.query('SELECT data FROM leads WHERE connection_id=$1 AND phone=$2 FOR UPDATE',[store.connectionId,phone]);
   const request=validateDiscard(row?.data,input);
   if(!request)return {already:true};
@@ -35,4 +36,7 @@ export async function discardByAi(store,phone,input){
   await tx.audit('sales_qualification_by_ai',null,{phone,status:'disqualified',reason:request.reason});
   return {discarded:true,...request};
  });
+ // Aviso opcional (Telegram/sino) só para quem escolheu receber descartes.
+ if(result.discarded&&store.pool)try{const c=await store.getConnection();if(c?.company_id)await notifyOptIn(store.pool,{companyId:c.company_id,connectionId:store.connectionId,phone,kind:'lead_discarded'});}catch{}
+ return result;
 }
