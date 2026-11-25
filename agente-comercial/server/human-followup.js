@@ -1,7 +1,7 @@
 // Acompanhamento das conversas que estão com atendente humano:
 // - cliente falou de horário: avisa o responsável na hora (ou os gestores, se não houver responsável);
 // - cliente sem resposta da equipe há 2 horas (em expediente): avisa o responsável e os gestores (Telegram e sino);
-// - 24 horas sem resposta da equipe: devolve a conversa para a HELENA e arma a cadência.
+// A HELENA nunca reassume sozinha um atendimento que está com a equipe.
 // A "resposta automática de apoio" não conta como resposta da equipe.
 import crypto from 'node:crypto';
 import {businessOpen} from './consultant-routing.js';
@@ -13,9 +13,8 @@ export const ACK_RE=/^(?:ok+|okay|blz|beleza|certo|ta bom|ta|show|perfeito|combi
 // Reações e mensagens automáticas do próprio cliente (ausência/boas-vindas da empresa dele) também não pedem resposta.
 export const NO_REPLY_NEEDED=text=>{const t=norm(text).trim();return ACK_RE.test(t)||/^\[o cliente reagiu/.test(t)||/obrigad[oa] pelo (?:seu )?contato|mensagem automatica|resposta automatica|no momento (?:nao|estamos)|retornaremos (?:em breve|o mais breve)|nosso horario de atendimento/.test(t);};
 const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
-export function followupAction(turn,{open,escalated,scheduled,resumed,hasAppointment}){
+export function followupAction(turn,{open,escalated,scheduled}){
  if(!turn)return null;
- if(!resumed&&!hasAppointment&&turn.wait>=24*HOUR)return 'resume';
  if(!scheduled&&turn.schedule)return 'schedule';
  if(!escalated&&open&&turn.wait>=2*HOUR)return 'escalate';
  return null;

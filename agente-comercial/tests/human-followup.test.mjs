@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {followupAction,ACK_RE,SCHEDULE_RE} from '../server/human-followup.js';
 const H=3600000,norm=s=>s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
-test('acompanhamento humano: 2h avisa em expediente, 24h devolve à HELENA, horário avisa na hora',()=>{
+test('acompanhamento humano: 2h avisa em expediente, nunca devolve à HELENA, horário avisa na hora',()=>{
  const base={open:true,escalated:false,scheduled:false,resumed:false,hasAppointment:false};
  assert.equal(followupAction(null,base),null);
  assert.equal(followupAction({wait:H},base),null);
@@ -10,7 +10,7 @@ test('acompanhamento humano: 2h avisa em expediente, 24h devolve à HELENA, hor�
  assert.equal(followupAction({wait:3*H},{...base,escalated:true}),null);
  assert.equal(followupAction({wait:10*60000,schedule:true},base),'schedule');
  assert.equal(followupAction({wait:3*H,schedule:true},{...base,scheduled:true}),'escalate');
- assert.equal(followupAction({wait:25*H},{...base,escalated:true}),'resume');
+ assert.equal(followupAction({wait:25*H},{...base,escalated:true}),null,'a HELENA não reassume sozinha');assert.equal(followupAction({wait:72*H},{...base,escalated:true}),null);
  assert.equal(followupAction({wait:25*H},{...base,escalated:true,hasAppointment:true}),null,'com apresentação agendada não devolve');
  assert.equal(followupAction({wait:25*H},{...base,escalated:true,resumed:true}),null);
 });
