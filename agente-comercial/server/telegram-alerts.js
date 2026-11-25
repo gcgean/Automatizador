@@ -8,6 +8,8 @@ import {ALERT_IDS,defaultKinds,recipientKinds} from '../shared/alert-types.js';
 const LINK_MINUTES=30;
 export async function initTelegramAlerts(pool){
  await pool.query('ALTER TABLE commercial_telegram_recipients ADD COLUMN IF NOT EXISTS kinds text[]');
+ // Vínculo novo não recebe alertas antigos acumulados: só os criados depois do vínculo.
+ await pool.query('ALTER TABLE commercial_telegram_recipients ADD COLUMN IF NOT EXISTS linked_at timestamptz NOT NULL DEFAULT now()');
  await pool.query('ALTER TABLE commercial_telegram ADD COLUMN IF NOT EXISTS bot_username text');
  await pool.query('ALTER TABLE commercial_telegram ADD COLUMN IF NOT EXISTS update_offset bigint');
  await pool.query(`CREATE TABLE IF NOT EXISTS commercial_telegram_link_codes(code text PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),user_id uuid NOT NULL REFERENCES users(id),created_by uuid,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL)`);
@@ -16,6 +18,8 @@ export function validKinds(kinds){
  if(!Array.isArray(kinds)||kinds.length>ALERT_IDS.length*2||kinds.some(k=>!ALERT_IDS.includes(k)))throw Object.assign(new Error('Tipos de alerta inválidos.'),{status:400});
  return [...new Set(kinds)];
 }
+// SQL: o alerta ainda vale para o Telegram? Recente (30 min) e criado depois do vínculo da pessoa.
+export const FRESH_SQL=(n='n',r='r')=>`${n}.created_at>=GREATEST(${r}.linked_at,now()-interval '30 minutes')`;
 // SQL: o destinatário r quer o tipo n.kind? (escolha salva ou padrão pelo perfil)
 export const WANTS_SQL=(kind,r='r')=>`${kind}=ANY(COALESCE(${r}.kinds,CASE WHEN ${r}.manager THEN '{${defaultKinds(true).join(',')}}'::text[] ELSE '{${defaultKinds(false).join(',')}}'::text[] END))`;
 
@@ -52,7 +56,7 @@ export async function pollLinks(pool,config,companyId,fetchImpl=fetch){
   if(!code){await call(fetchImpl,token,'sendMessage',{chat_id:m.chat.id,text:'Este link de vínculo expirou ou já foi usado. Gere um novo no painel do Command Comercial.'}).catch(()=>{});continue;}
   const person=(await pool.query('SELECT name,role FROM users WHERE id=$1',[code.user_id])).rows[0];
   await pool.query(`INSERT INTO commercial_telegram_recipients(company_id,user_id,chat_cipher,manager,kinds) VALUES($1,$2,$3,$4,$5)
-   ON CONFLICT(company_id,user_id) DO UPDATE SET chat_cipher=excluded.chat_cipher,kinds=COALESCE(commercial_telegram_recipients.kinds,excluded.kinds)`,[companyId,code.user_id,encryptSecret(String(m.chat.id),config.connectionsKey),person?.role==='admin',defaultKinds(person?.role==='admin')]);
+   ON CONFLICT(company_id,user_id) DO UPDATE SET chat_cipher=excluded.chat_cipher,kinds=COALESCE(commercial_telegram_recipients.kinds,excluded.kinds),linked_at=now()`,[companyId,code.user_id,encryptSecret(String(m.chat.id),config.connectionsKey),person?.role==='admin',defaultKinds(person?.role==='admin')]);
   linked++;
   await call(fetchImpl,token,'sendMessage',{chat_id:m.chat.id,text:'Pronto'+(person?.name?', '+person.name.split(' ')[0]:'')+'! A partir de agora você recebe aqui os alertas do Command Comercial escolhidos no painel.'}).catch(()=>{});
  }

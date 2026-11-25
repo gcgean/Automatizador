@@ -9,7 +9,7 @@ import {waitingTurn} from './support-assist.js';
 const HOUR=3600000;
 export const SCHEDULE_RE=/\b(?:horario|marcad[oa]s?|marcar|agendar|agendad[oa]|reagendar|remarcar|reuniao|apresentacao|amanha (?:as|a|de)|hoje (?:as|a)|\d{1,2}(?::\d{2})?\s?h(?:rs?|oras)?\b|\d{1,2}:\d{2})/;
 // Confirmações curtas não pedem resposta ("ok", "obrigado", "combinado", emoji).
-export const ACK_RE=/^(?:ok+|okay|blz|beleza|certo|ta bom|ta|show|perfeito|combinado|obrigad[oa]s?|obg|valeu|vlw|entendi|otimo|fechado|isso|sim|tudo bem|bom dia|boa tarde|boa noite|[\p{Extended_Pictographic}️‍\s!.]+)[\s!.]*$/u;
+export const ACK_RE=/^(?:ok+|okay|blz|beleza|certo|ta bom|ta|show|perfeito|combinado|obrigad[oa]s?|obg|valeu|vlw|entendi|entendo|compreendo|tendi|ah ta|ah sim|ok entendi|otimo|fechado|isso|sim|tudo bem|bom dia|boa tarde|boa noite|[\p{Extended_Pictographic}️‍\s!.]+)[\s!.]*$/u;
 // Reações e mensagens automáticas do próprio cliente (ausência/boas-vindas da empresa dele) também não pedem resposta.
 export const NO_REPLY_NEEDED=text=>{const t=norm(text).trim();return ACK_RE.test(t)||/^\[o cliente reagiu/.test(t)||/obrigad[oa] pelo (?:seu )?contato|mensagem automatica|resposta automatica|no momento (?:nao|estamos)|retornaremos (?:em breve|o mais breve)|nosso horario de atendimento/.test(t);};
 const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -36,6 +36,8 @@ export class HumanFollowup{
   const turn=waitingTurn(events,this.now());if(!turn)return false;
   const anchorAt=Date.parse(events.find(x=>x.id===turn.anchor)?.at||0),pending=events.filter(e=>e.direction==='in'&&Date.parse(e.at)>=anchorAt);
   if(pending.every(e=>NO_REPLY_NEEDED(e.text)))return false;
+  const lastAsk=pending.filter(e=>!NO_REPLY_NEEDED(e.text)).at(-1);
+  if(lastAsk&&events.some(e=>e.direction==='out'&&e.state!=='internal'&&Date.parse(e.at)>Date.parse(lastAsk.at)))return false;
   turn.schedule=SCHEDULE_RE.test(norm(pending.map(e=>e.text).join(' ')));
   if(this.dryRun){const row=(await this.store.pool.query('SELECT * FROM human_followups WHERE ticket_id=$1 AND anchor_id=$2',[t.id,turn.anchor]).catch(()=>({rows:[]}))).rows[0]||{};const settings=await this.registry.routing.settings(t.company_id);const action=followupAction(turn,{open:businessOpen({...settings,enabled:true},this.now()),escalated:!!row.escalated_at,scheduled:!!row.scheduled_at,resumed:!!row.resumed_at,hasAppointment:!!(lead?.agendamentoResumo||lead?.resultado==='apresentacao_agendada')});if(action)this.plan.push({action,phone:t.phone,nome:lead?.nome||lead?.nomeWhatsApp,responsavel:lead?.assignedUserName||null,horas:Math.round(turn.wait/HOUR),ultima:String(pending.at(-1)?.text||'').slice(0,80)});return false;}
   await this.store.pool.query('INSERT INTO human_followups(ticket_id,anchor_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[t.id,turn.anchor]);

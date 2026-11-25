@@ -15,7 +15,7 @@ test('acompanhamento humano: 2h avisa em expediente, nunca devolve à HELENA, ho
  assert.equal(followupAction({wait:25*H},{...base,escalated:true,resumed:true}),null);
 });
 test('confirmações curtas não contam como espera; pedidos de horário são reconhecidos',()=>{
- for(const t of ['Ok','ok!','Obrigado','👍','Combinado','Valeu'])assert.equal(ACK_RE.test(norm(t)),true,t);
+ for(const t of ['Ok','ok!','Obrigado','👍','Combinado','Valeu','Entendo','Ah tá'])assert.equal(ACK_RE.test(norm(t)),true,t);
  for(const t of ['Pode sim','10','Quero saber sobre o celular','Mais antes vamos falar de valores'])assert.equal(ACK_RE.test(norm(t)),false,t);
  for(const t of ['Ficamos marcados para amanhã, 14:00h?','Pode ser às 16h','Quero remarcar a reunião','Qual horário?'])assert.equal(SCHEDULE_RE.test(norm(t)),true,t);
  for(const t of ['Quero saber mais sobre o sistema','Ok fico no aguardo'])assert.equal(SCHEDULE_RE.test(norm(t)),false,t);

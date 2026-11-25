@@ -43,8 +43,13 @@ test('Telegram: vínculo por link, alertas escolhidos por pessoa, teste e tipos 
   // Entrega: só os tipos escolhidos chegam.
   const phone='5511999900555';await store.scope('default').updateLead(phone,{nome:'Cliente QA',assignedUserId:seller,status:'encaminhado'});
   for(const kind of ['client_waiting','schedule_request'])await store.pool.query('INSERT INTO user_notifications(id,user_id,company_id,connection_id,phone,kind) VALUES($1,$2,$3,$4,$5,$6)',[crypto.randomUUID(),seller,'default','default',phone,kind]);
+  // Alerta antigo (antes do vínculo) não é despejado no Telegram.
+  await store.pool.query("INSERT INTO user_notifications(id,user_id,company_id,connection_id,phone,kind,created_at) VALUES($1,$2,'default','default',$3,'schedule_request',now()-interval '3 hours')",[crypto.randomUUID(),seller,phone]);
   const before=sent.length;await growth.telegramTick();const delivered=sent.slice(before).filter(m=>m.chat_id==='777001');
   assert.equal(delivered.length,1);assert.match(delivered[0].text,/horário/);
+  // Gestor abre o alerta de um lead que está com outra pessoa.
+  const {ConsultantRouting}=await import('../server/consultant-routing.js');const note=crypto.randomUUID();await store.pool.query("INSERT INTO user_notifications(id,user_id,company_id,connection_id,phone,kind) VALUES($1,$2,'default','default',$3,'client_waiting')",[note,admin.id,phone]);
+  const seen=await new ConsultantRouting(store).notifications({...admin,permissions:[],connections:['default']},note);assert.equal(seen.length,1,'gestor vê alerta de lead de outra pessoa');
   // Tipo opcional: só gera aviso para quem escolheu.
   assert.equal(await notifyOptIn(store.pool,{companyId:'default',connectionId:'default',phone,kind:'reply_suggestion'}),1);
   assert.equal(await notifyOptIn(store.pool,{companyId:'default',connectionId:'default',phone,kind:'lead_discarded'}),0);

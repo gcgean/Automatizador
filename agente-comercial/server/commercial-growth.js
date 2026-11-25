@@ -10,7 +10,7 @@ import {resolveAccess} from './access.js';
 import {requestsOptOut,declinesInterest} from './consent.js';
 import {clearNoResponseTag} from './conversation-lifecycle.js';
 import {businessOpen} from './consultant-routing.js';
-import {initTelegramAlerts,WANTS_SQL,createLink,pollLinks,botUsername,validKinds,recipientKinds} from './telegram-alerts.js';
+import {initTelegramAlerts,WANTS_SQL,FRESH_SQL,createLink,pollLinks,botUsername,validKinds,recipientKinds} from './telegram-alerts.js';
 import {alertType,defaultKinds} from '../shared/alert-types.js';
 
 const APPROVED_OFFICIAL_PAGES={nfe:'https://commandweb.net/nota-fiscal-eletronica',nfse:'https://commandweb.net/nota-fiscal-de-servico',contador:'https://commandweb.net/contador',oficina:'https://commandweb.net/oficina'};
@@ -227,7 +227,7 @@ export class CommercialGrowth{
   await this.store.transaction(async tx=>{
    if(body.userId&&!(await tx.pool.query('SELECT id FROM users WHERE id=$1 AND company_id=$2 AND active FOR UPDATE',[body.userId,user.company_id])).rowCount)throw fail('Usuário indisponível.');
    await tx.pool.query('INSERT INTO commercial_telegram(company_id,enabled,token_cipher) VALUES($1,$2,$3) ON CONFLICT(company_id) DO UPDATE SET enabled=excluded.enabled,token_cipher=COALESCE(excluded.token_cipher,commercial_telegram.token_cipher),updated_at=now()',[user.company_id,body.enabled,cipher]);
-   if(body.userId){if(body.remove)await tx.pool.query('DELETE FROM commercial_telegram_recipients WHERE company_id=$1 AND user_id=$2',[user.company_id,body.userId]);else await tx.pool.query('INSERT INTO commercial_telegram_recipients(company_id,user_id,chat_cipher,manager,kinds) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,user_id) DO UPDATE SET chat_cipher=excluded.chat_cipher,manager=excluded.manager,kinds=COALESCE(excluded.kinds,commercial_telegram_recipients.kinds)',[user.company_id,body.userId,encryptSecret(body.chatId,this.config.connectionsKey),body.manager===true,body.kinds?validKinds(body.kinds):defaultKinds(body.manager===true)]);}
+   if(body.userId){if(body.remove)await tx.pool.query('DELETE FROM commercial_telegram_recipients WHERE company_id=$1 AND user_id=$2',[user.company_id,body.userId]);else await tx.pool.query('INSERT INTO commercial_telegram_recipients(company_id,user_id,chat_cipher,manager,kinds) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,user_id) DO UPDATE SET chat_cipher=excluded.chat_cipher,manager=excluded.manager,kinds=COALESCE(excluded.kinds,commercial_telegram_recipients.kinds),linked_at=now()',[user.company_id,body.userId,encryptSecret(body.chatId,this.config.connectionsKey),body.manager===true,body.kinds?validKinds(body.kinds):defaultKinds(body.manager===true)]);}
    await tx.audit('commercial_telegram_configured',user.id,{companyId:user.company_id,enabled:body.enabled});
   });
   // Token novo: confirma com o Telegram e guarda o @ do bot para os links de vínculo.
@@ -237,7 +237,7 @@ export class CommercialGrowth{
  async telegramTick(){
   for(const c of (await this.store.pool.query('SELECT DISTINCT company_id FROM commercial_telegram_link_codes WHERE expires_at>now()')).rows)await pollLinks(this.store.pool,this.config,c.company_id,this.fetch).catch(()=>{});
   // Claim persistente: em timeout, não repetir envio incerto automaticamente.
-  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND ${WANTS_SQL('n.kind')} AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
+  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND ${WANTS_SQL('n.kind')} AND ${FRESH_SQL()} AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
   for(const n of rows){const c=await this.store.getConnection(n.connection_id),u=(await this.store.pool.query('SELECT * FROM users WHERE id=$1 AND active AND company_id=$2',[n.user_id,n.company_id])).rows[0];if(!c?.enabled||!c.company_active||!u)continue;
    const user=await resolveAccess(this.store.pool,{...u,connections:(await this.store.pool.query('SELECT connection_id FROM user_connections WHERE user_id=$1',[u.id])).rows.map(r=>r.connection_id)}),lead=await this.store.scope(n.connection_id).getLead(n.phone);
    if(!lead||lead.optedOut||n.kind!=='lead_discarded'&&(lead.conversationClosed||n.kind!=='support_request'&&['ganho','perdido'].includes(lead.resultado))||!can(user,'conversations.view')||user.role!=='admin'&&!user.connections.includes(n.connection_id)||!canSeeLead(user,lead))continue;
