@@ -116,14 +116,6 @@ Fonte oficial: https://commandweb.net/contador, conferida em 19/11/2026. Preços
 
 O comercial possui páginas por módulo e geração de links individuais. A página comercial não comprova cadastro público nem teste gratuito do Command Server. Até confirmação do percurso e das condições, encaminhar para conhecer e solicitar a liberação com a equipe. O acompanhamento de cadastro e uso depende do emissor de eventos no próprio Command Server e não é ativado somente pelo conhecimento da IA. A oferta específica de contadores continua separada.
 
-<!-- commercial-pages-2026-11-23:start -->
-## Páginas comerciais por produto e necessidade
-As páginas públicas do catálogo foram ampliadas com conteúdo por segmento, benefícios confirmados, seleção de necessidade, fluxo ilustrativo, perguntas frequentes e contato com a equipe. Não exibem nomes, telefones ou relatos privados dos leads. O fluxo ilustrativo não é uma tela real do produto nem uma demonstração que executa operações.
-Na operação comercial da Command, os novos links individuais enviados pela IA abrem a página do produto; os links antigos de acesso direto continuam válidos enquanto o destino permanecer configurado. A página permite abrir o teste quando o catálogo tiver URL e condições confirmadas. Nos demais casos, “Solicitar acesso para testar” prepara uma mensagem para o WhatsApp comercial: o cliente ainda precisa enviá-la e a equipe confirmar a liberação. Criar a página não cria uma conta no sistema nem habilita um teste inexistente.
-A Command tem páginas para NF-e, NFS-e, NFC-e, PDV, estoque, financeiro, gestão de loja, oficina/OS, contadores, CT-e e MDF-e. Os endereços seguem `/conhecer/{conexao}/{produto}` e o catálogo mostra o link de cada página. Somente os vídeos publicados e aprovados para aquele produto/conexão aparecem automaticamente. Valores, depoimentos, resultados, promoções e urgência não são inventados.
-Quando o cliente abre pelo link individual, a plataforma registra visualização, clique no próximo passo, seleção de foco e interação com perguntas frequentes. Os eventos são deduplicados e vinculados apenas à referência válida da conexão/produto, com limite de volume; não abrem atendimento nem notificam vendedor por mera visita. O contato humano acontece após a mensagem do próprio cliente. Abertura e clique não confirmam cadastro, primeiro uso ou venda. O painel Teste e comercial exibe visualizações e cliques separados desses eventos reais de uso. A vinculação de cadastro e uso aos sistemas externos continua dependendo das integrações próprias.
-<!-- commercial-pages-2026-11-23:end -->
-
 <!-- lead-nurturing-2026-11-23:start -->
 ## Nutrição por perfil e problema do setor
 Para necessidade simples e planos de entrada: esclarecer a dúvida, relacionar problema do setor a recurso confirmado, enviar a página pelo catálogo e buscar um vídeo pertinente. Orientar um primeiro passo e ajudar no cadastro somente quando o acesso público estiver confirmado. Não exigir reunião, não presumir cadastro ou uso por clique.
@@ -138,15 +130,25 @@ Fonte pública: https://commandweb.net/api/public/aulas e https://commandweb.net
 Descrições do fornecedor são referência e não transcrição, análise visual ou confirmação de uso real. Não inventar passos, preços, compatibilidade ou condições com base no vídeo. Usar a busca para uma dúvida específica e enviar um vídeo por vez, explicando sua utilidade. A biblioteca preserva alterações por versão; sincronização é idempotente, preserva material manual e não remove vídeos se a fonte falhar ou omitir uma entrada. Revisar entradas retiradas da fonte antes de despublicar.
 <!-- official-lessons-2026-11-23:end -->
 
-<!-- official-sales-pages-2026-11-23:start -->
-## Páginas oficiais aprovadas: prioridade sobre apresentações do comercial
-Para empresa que emite notas de produtos: https://commandweb.net/nota-fiscal-eletronica (produto nfe). Para prestador emitindo notas dos próprios serviços: https://commandweb.net/nota-fiscal-de-servico (produto nfse). Para contador/escritório identificado atendendo empresas: https://commandweb.net/contador (produto contador); compartilhar a oferta e propor conversa consultiva, sem exigir agendamento antes do acesso. Os novos links individuais desses três produtos devem abrir as páginas oficiais. Não substituir por apresentações /conhecer nem exigir liberação humana para abrir o cadastro público dessas ofertas. Cadastro grátis não equivale a emissão grátis. As condições e valores são os atuais da página; não copiar anúncios antigos.
-Também preservar https://commandweb.net/contabilidades como endereço legado informado pelo responsável. Não confundir com a oferta /contador nem repetir seu preço de anúncio antigo. O HTML inicial não permitiu confirmar o fluxo comercial atual dessa aplicação: para uma recomendação específica além das três páginas acima, confirmar o destino renderizado e o contexto da necessidade. A aprovação do endereço não confirma todo preço do histórico.
-As demais apresentações do comercial não foram aprovadas visualmente. Suas substitutas serão feitas pela IA do sistema conforme docs/paginas-faltantes-briefing.md; não inventar URLs de páginas ainda não entregues. Não criar outras páginas agora.
-<!-- official-sales-pages-2026-11-23:end -->
+<!-- official-command-pages-2026-11-24:start -->
+## Command — 11 páginas oficiais aprovadas por necessidade
+Fornecidas pelo responsável e consultadas em 24/11/2026: todas retornaram HTTP 200 e configuração pública de cadastro do produto. A página e o cadastro pertencem à revenda informada na origem; não trocar a identificação da revenda.
 
-<!-- official-oficina-2026-11-24:start -->
-## Oficina mecânica — página oficial aprovada
-Endereço: https://commandweb.net/oficina, aprovado pelo responsável em 24/11/2026 e consultado com HTTP 200. Público: oficinas mecânicas e serviços automotivos; produto do catálogo oficina, associado à etiqueta Oficina / Ordens de serviço. Quando esse perfil e interesse forem identificados, usar obter_link_produto com produto oficina para enviar a página oficial e um benefício pertinente a OS, peças/serviços e acompanhamento do atendimento. Não exigir agendamento nem perguntar de novo qual solução já foi identificada. Não repetir o link sem motivo. Pedido de suporte técnico de quem já usa o sistema tem prioridade sobre oferta comercial.
-A página apresenta o botão Assinar e começar e fluxo público de cadastro em /r/a4ade44e-3ef6-4b7f-ac47-03188de5fa96/cadastro/oficina. Isso não comprova teste gratuito nem gratuidade do cadastro ou do uso: orientar conforme planos e condições da página, sem inventar preços ou prazos. Não efetuar contratação ou cadastro real durante conferências. A página oficial substitui a apresentação interna do comercial para os novos links de oficina. Links individuais antigos que apontavam para a apresentação interna passam à página oficial quando o catálogo mantiver esse destino aprovado e não houver teste direto confirmado.
-<!-- official-oficina-2026-11-24:end -->
+| Produto | Etiqueta / interesse | Página oficial | Quando enviar |
+|---|---|---|---|
+| oficina | Oficina / Ordens de serviço | https://commandweb.net/oficina | Oficina mecânica: OS, peças, serviços e histórico do veículo. |
+| pdv | Frente de caixa / PDV | https://commandweb.net/frente-de-caixa | Vendas, pagamentos e conferência de caixa. |
+| nfce | NFC-e | https://commandweb.net/cupom-fiscal-nfce | Emissão de cupom fiscal no varejo. |
+| estoque | Controle de estoque | https://commandweb.net/controle-de-estoque | Produtos, saldos, movimentações e inventário. |
+| financeiro | Gestão financeira | https://commandweb.net/gestao-financeira | Pagar, receber, vencimentos e baixas. |
+| erp | Gestão de loja | https://commandweb.net/gestao-de-loja | Gestão integrada de vendas, estoque e financeiro. |
+| cte | CT-e | https://commandweb.net/cte | Conhecimento de transporte. |
+| mdfe | MDF-e | https://commandweb.net/mdfe | Manifesto de documentos no transporte. |
+| nfe | NF-e | https://commandweb.net/nota-fiscal-eletronica | Notas de produtos da própria empresa. |
+| nfse | NFS-e | https://commandweb.net/nota-fiscal-de-servico | Notas dos serviços da própria empresa. |
+| contador | Contadores | https://commandweb.net/contador | Escritório contábil atendendo empresas; oferecer conversa consultiva por aceite. |
+
+Escolha pelo pedido ATUAL. Use obter_link_produto com o ID correspondente para gerar o link individual, mantendo a atribuição comercial. Não envie uma lista de páginas; explique em uma frase como a solução ajuda naquela necessidade. Etiquetas e segmento orientam quando não houver pedido específico. Para mecânica e OS, oficina; para cupom, nfce; para caixa, pdv; para várias áreas da loja, erp. Para contador/escritório identificado, contador e convite consultivo por aceite; mencionar o próprio contador não identifica profissão. Cliente pedindo humano ou contratação tem prioridade. Pedido de suporte técnico de quem já usa o produto vem antes da venda: não enviar oferta como resposta a erro ou pedido de liberação.
+As oito páginas de módulos/gestão apresentam Assinar e começar. NF-e, NFS-e e contadores apresentam criação de conta gratuita, mas uso/emissões seguem as condições de cada oferta. Não anunciar teste gratuito, prazo, desconto ou recursos incluídos sem confirmação. Siga o primeiro passo do catálogo, sem exigir liberação humana para abrir esses fluxos públicos. Nenhum preço foi atualizado nesta inclusão.
+Novos links e links antigos das apresentações internas Command levam à página oficial configurada, preservando commercial_ref. Clique não confirma cadastro, uso ou venda; esses fatos dependem de eventos reais da integração. Não usar páginas Command para produtos Cilos ou de outras empresas. Este bloco substitui as listas parciais anteriores de páginas oficiais e a recomendação antiga de enviar apresentações internas Command.
+<!-- official-command-pages-2026-11-24:end -->

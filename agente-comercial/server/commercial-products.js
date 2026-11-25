@@ -1,6 +1,7 @@
+import {OFFICIAL_COMMAND_PAGES} from './official-commercial-pages.js';
 import {tagNameKey,interestTags} from './interest-tags.js';
 
-export const PRODUCT_SEEDS=[
+const INITIAL_PRODUCTS=[
  {id:'solucoes',name:'Soluções Cilos',tags:[],benefit:'Conheça as opções para atendimento, gestão comercial e frotas.',conditions:'Cada produto possui contratação, recursos e condições próprios. Escolha a solução que deseja conhecer.',family:'cilos'},
  {id:'nfe',name:'NF-e',tags:['NF-e','Emissão de nota fiscal'],benefit:'Conheça a emissão de notas de produtos.',family:'command'},
  {id:'nfse',name:'NFS-e',tags:['NFS-e'],benefit:'Conheça a emissão de notas de serviços.',family:'command'},
@@ -18,6 +19,7 @@ export const PRODUCT_SEEDS=[
  {id:'crm',name:'Cilos CRM',tags:['Cilos CRM'],benefit:'Conheça a organização de leads e oportunidades.',salesUrl:'https://crm.cilos.com.br/login',conditions:'Condições do teste e criação de empresa nova pendentes de confirmação.',family:'cilos'},
  {id:'helena',name:'HELENA Comercial',tags:['HELENA Comercial'],benefit:'Conheça o atendimento comercial com IA e acompanhamento da equipe.',conditions:'Demonstração e liberação pela equipe. Sem cadastro público confirmado.',family:'cilos'}
 ];
+export const PRODUCT_SEEDS=INITIAL_PRODUCTS.map(p=>p.family==='command'?{...p,...OFFICIAL_COMMAND_PAGES[p.id]}:p);
 export function safeProductUrl(value){
  if(!value)return '';let u;try{u=new URL(value);}catch{throw new Error('Informe um endereço HTTPS válido.');}
  if(u.protocol!=='https:'||u.username||u.password||u.port&&u.port!=='443'||u.search||u.hash||value.length>500||!u.hostname.includes('.')||/^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)||u.hostname.includes(':')||u.hostname.endsWith('.local'))throw new Error('Use uma URL pública HTTPS, sem credenciais, parâmetros ou fragmentos.');

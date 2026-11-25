@@ -2,6 +2,8 @@
 
 Atualizado em 24/11/2026. Solicitação do responsável: criar as páginas dentro do sistema de origem, com o padrão visual das páginas oficiais Command e botões que levem ao cadastro e ao produto correto.
 
+> Atualização de 24/11/2026: todas as 11 páginas Command deste briefing já foram entregues pelo responsável, conferidas e vinculadas ao catálogo/IA. Não recriar as páginas Command. A matriz abaixo permanece como referência de escopo; verificar somente as pendências Cilos nos projetos próprios.
+
 ## 1. Manter as páginas oficiais existentes
 
 | Página | Endereço | Usar quando |
@@ -31,7 +33,7 @@ O responsável rejeitou o padrão visual dessas apresentações e pediu páginas
 
 As rotas sugeridas são propostas, não endereços já publicados. Verificar primeiro se o sistema já tem uma página equivalente e reaproveitá-la.
 
-## 3. Páginas Command que faltam
+## 3. Páginas Command já entregues — não recriar
 
 | Prioridade | ID comercial | Página/rota sugerida | Problema do cliente e conteúdo obrigatório | Tela real e primeira ação após cadastro |
 |---|---|---|---|---|

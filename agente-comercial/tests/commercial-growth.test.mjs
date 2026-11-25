@@ -20,6 +20,8 @@ test('recusa de acompanhamento, intenção imediata e classificação sem inferi
  assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'NFS-e'},[]).id,'nfse');
  assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'contador e NFS-e'},[]).id,'contador');
  assert.equal(chooseProduct(PRODUCT_SEEDS,{},[]),null);
+ for(const p of PRODUCT_SEEDS.filter(p=>p.family==='command'))assert.equal(chooseProduct(PRODUCT_SEEDS,{},[p.tags[0]]).id,p.id);
+ assert.ok(PRODUCT_SEEDS.filter(p=>p.family==='cilos').every(p=>!p.salesUrl?.startsWith('https://commandweb.net/')));
  assert.equal(chooseProduct(PRODUCT_SEEDS,{segmento:'Oficina mecânica',produtos_interesse:'estoque'},[]).id,'oficina');
  assert.equal(chooseProduct(PRODUCT_SEEDS,{produtos_interesse:'oficina e NF-e'},[]).id,'oficina');
  assert.throws(()=>safeProductUrl('https://127.0.0.1/'));
