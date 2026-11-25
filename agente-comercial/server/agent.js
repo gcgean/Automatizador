@@ -1,6 +1,7 @@
 import {isTechnicalSupportRequest,requestTechnicalSupport,TECHNICAL_SUPPORT_TOOL,TECHNICAL_SUPPORT_INSTRUCTIONS} from './technical-support.js';
 import {consultativeLead} from './lead-nurturing.js';
 import {prefersProductTrial} from './commercial-growth.js';
+import {splitLinks} from './message-split.js';
 import {DEMONSTRATION_TOOL} from './demonstrations.js';
 import {immediateSalesIntent,PRODUCT_LINK_TOOL} from './commercial-growth.js';
 import {sectorRoutingContext,routeSector} from './sector-routing.js';
@@ -185,7 +186,7 @@ export class SalesAgent {
     if(this.store.scoped&&this.store.pool&&isTechnicalSupportRequest(text)&&!lead?.optedOut&&!lead?.conversationClosed){const result=await requestTechnicalSupport(this.store,from,{text,reason:text.slice(0,500),messageId:id,controlBefore});return this.finishTechnicalSupport(from,id,text,conv,result);}
     if(this.routing&&!(lead?.status==='encaminhado'&&lead?.humanControlId===lead?.businessAppControlId&&lead?.businessAppControlId)&&!lead?.optedOut&&!lead?.conversationClosed){const routed=await this.routing.intercept(this,from,text,interactiveReplyId);if(routed){if(this.cadence)await this.cadence.stop(this.store.connectionId,from,'Cliente respondeu à oferta de consultor');await this.whatsapp.sendText(from,routed.reply,{actor:'ai',provider:'consultant-routing'});conv.pendingHuman??=[];conv.pendingHuman.push({id,text:'Cliente: '+text+'\nResposta da plataforma: '+routed.reply,receivedAt:new Date().toISOString()});conv.processedIds.push(id);await this.store.saveConversation(conv);return routed.reply;}}
     if(this.cadence)await this.cadence.inbound(this.store.connectionId,from,text);
-    if(this.growth&&this.routing&&lead?.status!=='encaminhado'&&!automationClosed(lead)&&!lead.cadenceDeclined&&immediateSalesIntent(text)){const routed=await this.growth.requestHuman(this,from,text);await this.whatsapp.sendText(from,routed.reply,{actor:'ai',provider:'commercial-priority'});await this.growth.recordLinksSent(this.store.connectionId,from,routed.reply);conv.pendingHuman??=[];conv.pendingHuman.push({id,text:'Cliente: '+text+'\nResposta da plataforma: '+routed.reply,receivedAt:new Date().toISOString()});conv.processedIds.push(id);await this.store.saveConversation(conv);await this.syncCrm(from);return routed.reply;}
+    if(this.growth&&this.routing&&lead?.status!=='encaminhado'&&!automationClosed(lead)&&!lead.cadenceDeclined&&immediateSalesIntent(text)){const routed=await this.growth.requestHuman(this,from,text);await this.sendReply(from,routed.reply,{actor:'ai',provider:'commercial-priority'});await this.growth.recordLinksSent(this.store.connectionId,from,routed.reply);conv.pendingHuman??=[];conv.pendingHuman.push({id,text:'Cliente: '+text+'\nResposta da plataforma: '+routed.reply,receivedAt:new Date().toISOString()});conv.processedIds.push(id);await this.store.saveConversation(conv);await this.syncCrm(from);return routed.reply;}
     if(this.store.scoped&&this.store.pool&&!lead?.conversationClosed&&lead?.status!=='encaminhado'&&!['ganho','perdido'].includes(lead?.resultado)&&declinesInterest(text)){
       const optOut=requestsOptOut(text),reply=optOut?null:'Tudo bem, agradeço o retorno! Vou encerrar este atendimento. Se precisar de algo no futuro, é só chamar por aqui.';
       if(reply)await this.whatsapp.sendText(from,reply,{actor:'ai',provider:'closure'});
@@ -278,7 +279,9 @@ export class SalesAgent {
 
   async sendReply(to,text,metadata,interactive){
     if(interactive)return this.whatsapp.sendInteractive(to,text,interactive,metadata);
-    return this.whatsapp.sendText(to,text,metadata);
+    // Link em mensagem separada, para o cliente tocar com facilidade.
+    let result;for(const part of splitLinks(text))result=await this.whatsapp.sendText(to,part,metadata);
+    return result;
   }
 
   // Executa um turno do agente. O histórico só recebe acréscimos (a resposta completa do provedor),

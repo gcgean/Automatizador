@@ -9,9 +9,11 @@ import {canSeeLead,visibilitySQL} from './conversation-access.js';
 import {resolveAccess} from './access.js';
 import {requestsOptOut,declinesInterest} from './consent.js';
 import {clearNoResponseTag} from './conversation-lifecycle.js';
+import {businessOpen} from './consultant-routing.js';
 
 const APPROVED_OFFICIAL_PAGES={nfe:'https://commandweb.net/nota-fiscal-eletronica',nfse:'https://commandweb.net/nota-fiscal-de-servico',contador:'https://commandweb.net/contador',oficina:'https://commandweb.net/oficina'};
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
+const mentionsUrl=(text,url)=>!!url&&new RegExp(String(url).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\w/-])','i').test(String(text||''));
 const uuid=s=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s||'');
 export const PRODUCT_EVENTS=['signup_completed','trial_started','first_login','activation_completed','session_started','usage_error','subscription_started','trial_expired','subscription_cancelled'];
 export const PRODUCT_LINK_TOOL={name:'obter_link_produto',description:'Obtém link individual de teste ou página comercial do produto nesta conexão. Use quando a necessidade do cliente já estiver entendida e for o momento de convidar a conhecer ou se cadastrar, ou quando o cliente pedir o link ou quiser testar agora. Não use na primeira resposta a um pedido genérico de informações.',strict:true,input_schema:{type:'object',additionalProperties:false,required:['produto'],properties:{produto:{type:['string','null'],description:'Identificador do catálogo atual, ou null para selecionar pelo interesse registrado.'}}}};
@@ -89,8 +91,8 @@ export class CommercialGrowth{
   if(state?.signup_at){const name=state.activation_at?'cadencia_avancar_contratacao_v1':'cadencia_primeiro_uso_v1';const template=approved.find(t=>t.name===name&&t.language==='pt_BR');if(!template)return null;const body=template.body.replace('{{1}}',product.name);if(events.some(e=>e.direction==='out'&&e.text===body))return null;return {...template,body,payload:{name,language:{code:'pt_BR'},components:[{type:'body',parameters:[{type:'text',text:product.name}]}]}};}
   if(!product.templateName)return null;
   if(events.some(e=>e.commercialProductId===product.id))return null;
-  const previous=(await this.store.pool.query('SELECT id FROM commercial_links WHERE connection_id=$1 AND phone=$2 AND product_id=$3',[id,phone,product.id])).rows;
-  if(previous.some(l=>events.some(e=>e.direction==='out'&&e.text?.includes('/t/'+l.id))))return null;
+  const previous=(await this.store.pool.query('SELECT id,destination FROM commercial_links WHERE connection_id=$1 AND phone=$2 AND product_id=$3',[id,phone,product.id])).rows;
+  if(previous.some(l=>events.some(e=>e.direction==='out'&&(e.text?.includes('/t/'+l.id)||mentionsUrl(e.text,l.destination)))))return null;
   const t=approved.find(t=>t.name===product.templateName&&t.language===(product.language||'pt_BR'));if(!t||!product.trialConfirmed&&/test(?:e|ar)|experiment|gratuit|gr[aá]tis/i.test(t.body))return null;
   if(t.body.includes('{{1}}')){
    const link=await this.makeLink(id,phone,product);if(!link)return null;
@@ -102,12 +104,26 @@ export class CommercialGrowth{
  async makeLink(id,phone,product){
   if(!product||product.enabled===false)return null;
   const lead=await this.store.scope(id).getLead(phone);if(!lead||lead.optedOut||lead.cadenceDeclined||lead.conversationClosed||['ganho','perdido'].includes(lead.resultado))return null;
-  const token=crypto.randomUUID();await this.store.pool.query('INSERT INTO commercial_links(id,connection_id,phone,product_id,destination) VALUES($1,$2,$3,$4,$5)',[token,id,phone,product.id,product.presentationEnabled?this.landingUrl(id,product):product.trialConfirmed?product.trialUrl:product.salesUrl||this.landingUrl(id,product)]);
-  return {token,url:this.config.publicUrl+'/t/'+token};
+  const destination=product.presentationEnabled?this.landingUrl(id,product):product.trialConfirmed?product.trialUrl:product.salesUrl||this.landingUrl(id,product);
+  const token=crypto.randomUUID();await this.store.pool.query('INSERT INTO commercial_links(id,connection_id,phone,product_id,destination) VALUES($1,$2,$3,$4,$5)',[token,id,phone,product.id,destination]);
+  const direct=/^https?:\/\//i.test(destination)&&destination!==this.landingUrl(id,product);
+  return {token,url:direct?destination:this.config.publicUrl+'/t/'+token,direct};
  }
  async recordLinksSent(id,phone,text){
   const tokens=[...String(text||'').matchAll(/\/t\/([a-f0-9-]{36})/gi)].map(m=>m[1]);
-  for(const token of tokens.filter(uuid))await this.store.pool.query("INSERT INTO commercial_events(connection_id,phone,product_id,event_id,kind,occurred_at) SELECT connection_id,phone,product_id,$4,'link_sent',now() FROM commercial_links WHERE id=$1 AND connection_id=$2 AND phone=$3 ON CONFLICT DO NOTHING",[token,id,phone,'sent:'+token]);
+  for(const l of (await this.store.pool.query("SELECT DISTINCT ON (destination) id,destination FROM commercial_links WHERE connection_id=$1 AND phone=$2 AND created_at>now()-interval '1 day' ORDER BY destination,created_at DESC",[id,phone])).rows)if(mentionsUrl(text,l.destination))tokens.push(l.id);
+  let sent=false;for(const token of [...new Set(tokens)].filter(uuid))if((await this.store.pool.query("INSERT INTO commercial_events(connection_id,phone,product_id,event_id,kind,occurred_at) SELECT connection_id,phone,product_id,$4,'link_sent',now() FROM commercial_links WHERE id=$1 AND connection_id=$2 AND phone=$3 ON CONFLICT DO NOTHING RETURNING phone",[token,id,phone,'sent:'+token])).rowCount)sent=true;
+  if(sent)try{await this.notifyLinkSent(id,phone);}catch{}
+ }
+ // Lead recebeu link de produto: em horário comercial, avisa os vendedores (Telegram e sino) para puxarem conversa.
+ // Com responsável, só ele; sem responsável, os vendedores cadastrados no Telegram. Um aviso por lead a cada hora.
+ async notifyLinkSent(id,phone){
+  const c=await this.store.getConnection(id);if(!c?.enabled||!c.company_active)return;
+  if(!businessOpen({...(await this.registry?.routing?.settings(c.company_id)||{}),enabled:true},this.now()))return;
+  const lead=await this.store.scope(id).getLead(phone);if(!lead||lead.optedOut||lead.conversationClosed||['ganho','perdido'].includes(lead.resultado))return;
+  if((await this.store.pool.query("SELECT 1 FROM user_notifications WHERE connection_id=$1 AND phone=$2 AND kind='link_sent' AND created_at>now()-interval '1 hour'",[id,phone])).rowCount)return;
+  const users=lead.assignedUserId?[lead.assignedUserId]:(await this.store.pool.query('SELECT r.user_id FROM commercial_telegram_recipients r JOIN users u ON u.id=r.user_id AND u.active WHERE r.company_id=$1 AND NOT r.manager',[c.company_id])).rows.map(r=>r.user_id);
+  for(const u of users)await this.store.pool.query("INSERT INTO user_notifications(id,user_id,company_id,connection_id,phone,kind) VALUES($1,$2,$3,$4,$5,'link_sent')",[crypto.randomUUID(),u,c.company_id,id,phone]);
  }
  async redirect(token){
   if(!uuid(token))throw fail('Link inválido.',404);const row=(await this.store.pool.query('SELECT l.*,p.data,c.enabled,c.company_id,e.active FROM commercial_links l JOIN commercial_products p ON p.connection_id=l.connection_id AND p.id=l.product_id JOIN whatsapp_connections c ON c.id=l.connection_id JOIN companies e ON e.id=c.company_id WHERE l.id=$1 AND l.expires_at>now()',[token])).rows[0];
@@ -200,12 +216,12 @@ export class CommercialGrowth{
  }
  async telegramTick(){
   // Claim persistente: em timeout, não repetir envio incerto automaticamente.
-  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND n.kind IN ('assignment','sales_priority','sales_overdue','product_activity','support_request','client_waiting','schedule_request') AND (n.kind IN ('assignment','product_activity','support_request','client_waiting','schedule_request') OR r.manager) AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
+  const rows=(await this.store.pool.query(`SELECT n.*,t.token_cipher,r.chat_cipher FROM user_notifications n JOIN commercial_telegram t ON t.company_id=n.company_id AND t.enabled JOIN commercial_telegram_recipients r ON r.company_id=n.company_id AND r.user_id=n.user_id WHERE n.created_at>now()-interval '1 day' AND n.read_at IS NULL AND n.kind IN ('assignment','sales_priority','sales_overdue','product_activity','support_request','client_waiting','schedule_request','link_sent') AND (n.kind IN ('assignment','product_activity','support_request','client_waiting','schedule_request','link_sent') OR r.manager) AND NOT EXISTS(SELECT 1 FROM commercial_telegram_deliveries d WHERE d.notification_id=n.id AND d.user_id=n.user_id) ORDER BY n.created_at LIMIT 20`)).rows;
   for(const n of rows){const c=await this.store.getConnection(n.connection_id),u=(await this.store.pool.query('SELECT * FROM users WHERE id=$1 AND active AND company_id=$2',[n.user_id,n.company_id])).rows[0];if(!c?.enabled||!c.company_active||!u)continue;
    const user=await resolveAccess(this.store.pool,{...u,connections:(await this.store.pool.query('SELECT connection_id FROM user_connections WHERE user_id=$1',[u.id])).rows.map(r=>r.connection_id)}),lead=await this.store.scope(n.connection_id).getLead(n.phone);
    if(!lead||lead.optedOut||lead.conversationClosed||n.kind!=='support_request'&&['ganho','perdido'].includes(lead.resultado)||!can(user,'conversations.view')||user.role!=='admin'&&!user.connections.includes(n.connection_id)||!canSeeLead(user,lead))continue;
    const claim=await this.store.pool.query("INSERT INTO commercial_telegram_deliveries(notification_id,user_id,status) VALUES($1,$2,'sending') ON CONFLICT DO NOTHING RETURNING notification_id",[n.id,n.user_id]);if(!claim.rowCount)continue;
-   try{const token=decryptSecret(n.token_cipher,this.config.connectionsKey),chat=decryptSecret(n.chat_cipher,this.config.connectionsKey),text=n.kind==='schedule_request'?'Um cliente pediu ou confirmou um horário. Abra o atendimento e confirme na agenda.':n.kind==='client_waiting'?'Um cliente está esperando resposta da equipe há mais de 2 horas. Abra o atendimento para responder.':n.kind==='support_request'?'Um cliente solicitou suporte técnico. Abra o atendimento para conferir o pedido.':n.kind==='product_activity'?'Há uma atualização de cadastro ou uso de um produto. Abra o atendimento para acompanhar.':n.kind==='sales_overdue'?'Um atendimento comercial ultrapassou o prazo. Abra o painel para conferir.':n.kind==='sales_priority'?'Um cliente pediu atendimento humano agora. Abra o painel para assumir.':'Um novo lead foi vinculado a você.';
+   try{const token=decryptSecret(n.token_cipher,this.config.connectionsKey),chat=decryptSecret(n.chat_cipher,this.config.connectionsKey),text=n.kind==='link_sent'?'Um lead acabou de receber o link de uma solução. Bom momento para falar com ele: abra o atendimento e puxe conversa.':n.kind==='schedule_request'?'Um cliente pediu ou confirmou um horário. Abra o atendimento e confirme na agenda.':n.kind==='client_waiting'?'Um cliente está esperando resposta da equipe há mais de 2 horas. Abra o atendimento para responder.':n.kind==='support_request'?'Um cliente solicitou suporte técnico. Abra o atendimento para conferir o pedido.':n.kind==='product_activity'?'Há uma atualização de cadastro ou uso de um produto. Abra o atendimento para acompanhar.':n.kind==='sales_overdue'?'Um atendimento comercial ultrapassou o prazo. Abra o painel para conferir.':n.kind==='sales_priority'?'Um cliente pediu atendimento humano agora. Abra o painel para assumir.':'Um novo lead foi vinculado a você.';
     const response=await this.fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text,reply_markup:{inline_keyboard:[[{text:'Abrir atendimento',url:this.config.publicUrl+'/?notification='+n.id}]]},protect_content:true}),signal:AbortSignal.timeout(10000)});const result=await response.json();await this.store.pool.query('UPDATE commercial_telegram_deliveries SET status=$3,updated_at=now() WHERE notification_id=$1 AND user_id=$2',[n.id,n.user_id,response.ok&&result.ok?'accepted':'failed']);
    }catch{await this.store.pool.query("UPDATE commercial_telegram_deliveries SET status='uncertain',updated_at=now() WHERE notification_id=$1 AND user_id=$2",[n.id,n.user_id]);}
   }

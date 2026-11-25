@@ -13,7 +13,7 @@ import {SalesAgent} from '../server/agent.js';
 test('pedido de teste recebe link antes de agenda; reunião e humano explícitos continuam disponíveis',async()=>{
  for(const text of ['Quero testar o sistema','Me manda o link','Posso experimentar?'])assert.equal(prefersProductTrial(text),true,text);
  for(const text of ['Não quero testar','Quero agendar uma apresentação','Quero testar e falar com vendedor','Quero uma reunião'])assert.equal(prefersProductTrial(text),false,text);
- const calls=[],agent=new SalesAgent({store:{connectionId:'default'},config:{},growth:{productLink:async(id,phone,input)=>{calls.push({id,phone,input});return 'link autorizado';}},agenda:{consult:async()=>{calls.push('agenda');return {reply:'Horários reais'};}}});
+ const calls=[],agent=new SalesAgent({store:{connectionId:'default',getLead:async()=>({})},config:{},growth:{productLink:async(id,phone,input)=>{calls.push({id,phone,input});return 'link autorizado';}},agenda:{consult:async()=>{calls.push('agenda');return {reply:'Horários reais'};}}});
  assert.equal(await agent.runTool('synthetic','consultar_horarios_apresentacao',{}, {id:'trial',text:'Quero testar o sistema'}),'link autorizado');assert.equal(calls.length,1);
  assert.deepEqual(await agent.runTool('synthetic','consultar_horarios_apresentacao',{}, {id:'meeting',text:'Quero agendar uma conversa de tira dúvidas'}),{agendaReply:'Horários reais'});assert.equal(calls.at(-1),'agenda');
  const csv=closureReportCsv([{ticketId:1,note:'=HYPERLINK("externo")',name:'Cliente; teste',reasons:['Preço'],adId:'123'}]);assert.ok(csv.startsWith('\ufeff'));assert.match(csv,/'=HYPERLINK/);assert.match(csv,/"Cliente; teste"/);assert.match(csv,/Observação/);
