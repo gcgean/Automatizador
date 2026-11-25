@@ -44,6 +44,7 @@ import {TagService} from './tags.js';
 import {MetaConversions} from './meta-conversions.js';
 import {TextImprover} from './text-improver.js';
 import {HumanFollowup} from './human-followup.js';
+import {Prospecting} from './prospecting.js';
 import {CallingService} from './calling.js';
 import {MediaService} from './media.js';
 import {CadenceService} from './cadence.js';
@@ -103,6 +104,8 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       if(tracking&&req.method==='GET'&&growth){const destination=await growth.redirect(tracking[1]);res.writeHead(302,{Location:destination,'Referrer-Policy':'no-referrer','Cache-Control':'no-store'});return res.end();}
       const productEvent=url.pathname.match(/^\/product-events\/([a-zA-Z0-9-]{1,80})\/([a-z][a-z0-9-]{0,49})$/);
       if(productEvent&&req.method==='POST'&&growth)return send(res,200,await growth.receiveEvent(productEvent[1],productEvent[2],await readBody(req,16384),req.headers));
+      // API pública por chave (prospecção ativa): sem sessão, autenticada pela chave da empresa.
+      if(url.pathname.startsWith('/api/v1/')){if(!registry?.prospecting)return send(res,503,{error:'Indisponível.'});return registry.prospecting.handleApi(req,res,url,readBody,send);}
       if (auth && await auth.handle(req,res,url,readBody,send)) return;
       if (req.method === 'GET' && url.pathname === '/health') {
         await store.health?.();
@@ -142,6 +145,7 @@ export function createApp({config, agent, store:rootStore, inbox:baseInbox, auth
       if (auth && req.method === 'POST' && !auth.sameOrigin(req)) return send(res,403,'Origem da solicitação inválida.');
       const administrator=!auth||currentUser?.role==='admin';
       const companyId=currentUser?.company_id||'default';
+      if(url.pathname.startsWith('/prospecting/')){if(!currentUser||!registry?.prospecting)return send(res,401,'unauthorized');return registry.prospecting.handlePanel(req,res,url,readBody,send,currentUser);}
       if(url.pathname==='/demonstrations'||url.pathname.startsWith('/demonstrations/')){
         if(!currentUser||!registry?.demonstrations)return send(res,401,'unauthorized');
         const library=registry.demonstrations,id=url.searchParams.get('connection')||'default';await library.access(currentUser,id);
@@ -697,7 +701,7 @@ async function main() {
   cadence?.bind(registry);media?.bind(registry);
   const reengagement=registry?new Reengagement(store,registry,cadence,auth):null;
   const pipeline=registry?new Pipeline(store,auth):null;
-  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.growth=new CommercialGrowth(store,config);registry.growth.bind(registry);registry.demonstrations=new Demonstrations(store,config);registry.demonstrations.bind(registry);await registry.demonstrations.init();registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await registry.growth.init();await pipeline.init();}
+  if(registry){registry.push=new BrowserPush(store,config,auth);await registry.push.keys();registry.routing=new ConsultantRouting(store);registry.growth=new CommercialGrowth(store,config);registry.prospecting=new Prospecting(store,config);await registry.prospecting.init();registry.growth.bind(registry);registry.demonstrations=new Demonstrations(store,config);registry.demonstrations.bind(registry);await registry.demonstrations.init();registry.reengagement=reengagement;registry.pipeline=pipeline;registry.youtube=new YouTubeService(store,registry,{providerFactory:createProvider});await registry.init();await registry.growth.init();await pipeline.init();}
   const meta=registry?new MetaConversions(store,registry):null;
   const supportAssist=registry&&!config.panelOnly?new SupportAssist(store,registry):null;
   if(supportAssist)await supportAssist.init();
