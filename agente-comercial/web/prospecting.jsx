@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {Upload,Filter,Megaphone,KeyRound,Copy,Check,Plus,Pause,Play,Eye,X,CheckCircle2,XCircle,Users,MapPin,Briefcase,Building2} from 'lucide-react';
+import {Upload,Filter,Megaphone,KeyRound,Copy,Check,Plus,Pause,Play,Eye,X,CheckCircle2,XCircle,Users,MapPin,Briefcase,Building2,Plug,Search,RefreshCw,ExternalLink} from 'lucide-react';
 import {request} from './account.jsx';
 import {scoped} from './manage.jsx';
 import {can} from '../shared/access.js';
@@ -127,18 +127,60 @@ function Keys({busy,run}){
  </>;
 }
 
+const UFS='AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ');
+const EMPTY_SEARCH={uf:'',cities:'',ddd:'',cnae:'',keywords:'',sizes:[],mei:'',openedDays:'',excludeViewed:true,limit:100,page:1};
+function CasaDosDados({user,busy,run,reload}){
+ const [st,setSt]=useState(null),[key,setKey]=useState(''),[editing,setEditing]=useState(false),[form,setForm]=useState(EMPTY_SEARCH),[result,setResult]=useState(null);
+ useEffect(()=>{request('/prospecting/cdd').then(setSt).catch(()=>setSt({configured:false}));},[]);
+ const admin=user.role==='admin',manage=can(user,'prospecting.manage');
+ const set=(k,v)=>setForm({...form,[k]:v,page:1});
+ const search=page=>run(async()=>{const r=await request('/prospecting/cdd/search',{...form,page});setResult(r);setForm(f=>({...f,page}));setSt(s=>({...s,balance:r.balance??s?.balance}));await reload();});
+ if(!st)return <p className="muted">Carregando…</p>;
+ return <>
+  <section className="pr-card">
+   <div className="pr-card-head"><Plug size={18}/><div><h3>Conexão com a Casa dos Dados</h3><p className="muted">{st.configured?<>Conectada com a chave {st.hint} · saldo {st.balance==null?'—':fmt(st.balance)} {st.checkedAt?'(conferido '+when(st.checkedAt)+')':''}</>:'Ainda não conectada. Gere a chave no portal da Casa dos Dados e cole aqui.'}</p></div>
+    {st.configured&&<button className="secondary pr-push" disabled={busy} onClick={()=>run(async()=>{const b=await request('/prospecting/cdd/balance');setSt({...st,balance:b.total,checkedAt:new Date().toISOString()});},'Saldo atualizado.')}><RefreshCw size={14}/> Ver saldo</button>}
+    {st.configured&&<span className="pr-badge ok">Conectada</span>}</div>
+   {admin&&(!st.configured||editing)&&<form className="pr-form" autoComplete="off" onSubmit={e=>{e.preventDefault();run(async()=>{setSt(await request('/prospecting/cdd/key',{apiKey:key}));setKey('');setEditing(false);},'Casa dos Dados conectada.');}}>
+    <label className="pr-field grow"><span>Chave da API da Casa dos Dados</span><input type="password" required autoComplete="new-password" spellCheck={false} value={key} onChange={e=>setKey(e.target.value)} placeholder="Cole a chave aqui"/></label>
+    <div className="pr-row"><button disabled={busy||!key.trim()}>{busy?'Conferindo…':'Conectar'}</button>{editing&&<button type="button" className="secondary" onClick={()=>{setEditing(false);setKey('');}}>Cancelar</button>}</div>
+    <p className="muted pr-help">Onde pegar: <a href="https://portal.casadosdados.com.br/plataforma/api/chave" target="_blank" rel="noreferrer">portal da Casa dos Dados → API → Chave <ExternalLink size={12}/></a>. A chave é conferida na hora, guardada protegida e nunca mais aparece na tela.</p>
+   </form>}
+   {admin&&st.configured&&!editing&&<div className="pr-row"><button className="secondary" onClick={()=>setEditing(true)}>Trocar chave</button><button className="secondary danger" disabled={busy} onClick={()=>{if(confirm('Desconectar a Casa dos Dados? As buscas pela API param até colar uma chave de novo.'))run(async()=>setSt(await request('/prospecting/cdd/remove',{})),'Casa dos Dados desconectada.');}}>Desconectar</button></div>}
+   {!admin&&!st.configured&&<p className="muted">Peça a um administrador para conectar a Casa dos Dados.</p>}
+  </section>
+  {st.configured&&manage&&<section className="pr-card">
+   <div className="pr-card-head"><Search size={18}/><div><h3>Buscar empresas</h3><p className="muted">Só empresas ativas com celular. O resultado entra direto na base; quem já é contato ou pediu para sair fica de fora. Cada empresa trazida consome saldo da Casa dos Dados.</p></div></div>
+   <form className="pr-form" onSubmit={e=>{e.preventDefault();search(1);}}>
+    <label className="pr-field small"><span>UF</span><select value={form.uf} onChange={e=>set('uf',e.target.value)}><option value="">Todas</option>{UFS.map(u=><option key={u}>{u}</option>)}</select></label>
+    <label className="pr-field grow"><span>Cidades (separe por vírgula)</span><input value={form.cities} onChange={e=>set('cities',e.target.value)} placeholder="Fortaleza, Caucaia"/></label>
+    <label className="pr-field small"><span>DDD</span><input value={form.ddd} onChange={e=>set('ddd',e.target.value)} placeholder="85"/></label>
+    <label className="pr-field grow"><span>CNAE principal (códigos)</span><input value={form.cnae} onChange={e=>set('cnae',e.target.value)} placeholder="4712100, 4520001"/></label>
+    <label className="pr-field grow"><span>Palavras no nome</span><input value={form.keywords} onChange={e=>set('keywords',e.target.value)} placeholder="oficina, mercadinho"/></label>
+    <fieldset className="pr-scopes"><legend>Porte</legend>{[['01','Micro'],['03','Pequeno porte'],['05','Demais']].map(([k,l])=><label key={k}><input type="checkbox" checked={form.sizes.includes(k)} onChange={()=>set('sizes',form.sizes.includes(k)?form.sizes.filter(s=>s!==k):[...form.sizes,k])}/>{l}</label>)}</fieldset>
+    <label className="pr-field small"><span>MEI</span><select value={form.mei} onChange={e=>set('mei',e.target.value)}><option value="">Tanto faz</option><option value="only">Só MEI</option><option value="exclude">Sem MEI</option></select></label>
+    <label className="pr-field small"><span>Aberta há até (dias)</span><input type="number" min="1" max="3650" value={form.openedDays} onChange={e=>set('openedDays',e.target.value)}/></label>
+    <label className="pr-field small"><span>Quantidade</span><input type="number" min="1" max="1000" value={form.limit} onChange={e=>set('limit',e.target.value)}/></label>
+    <label className="pr-check"><input type="checkbox" checked={form.excludeViewed} onChange={e=>set('excludeViewed',e.target.checked)}/> Pular empresas que já trouxe antes</label>
+    <div className="pr-row"><button disabled={busy}>{busy?'Buscando…':'Buscar e importar'}</button><button type="button" className="secondary" onClick={()=>{setForm(EMPTY_SEARCH);setResult(null);}}>Limpar</button></div>
+   </form>
+   {result&&<div className="pr-result"><strong>{fmt(result.created)} novos · {fmt(result.updated)} atualizados</strong> de {fmt(result.received)} empresas trazidas ({fmt(result.total)} encontradas no total).{Object.keys(result.skipped||{}).length>0&&<ul>{Object.entries(result.skipped).map(([k,n])=><li key={k}>{SKIP[k]||k}: {fmt(n)}</li>)}</ul>}{result.warning&&<p><strong>{result.warning}</strong> Campos recebidos: {result.fields?.join(', ')}</p>}<small className="muted">Saldo agora: {result.balance==null?'—':fmt(result.balance)}</small>{result.hasMore&&<div className="pr-row"><button className="secondary" disabled={busy} onClick={()=>search(form.excludeViewed?1:result.page+1)}>Trazer mais {fmt(form.limit)}</button></div>}</div>}
+  </section>}
+ </>;
+}
+
 export function ProspectingPage({user,connections}){
  const [tab,setTab]=useState('base'),[summary,setSummary]=useState(null),[filters,setFilters]=useState({}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const reload=()=>request('/prospecting/summary?'+new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([,v])=>v)))).then(setSummary);
  useEffect(()=>{reload().catch(e=>setError(e.message));},[JSON.stringify(filters),user.company_id]);
  async function run(fn,ok){setBusy(true);setError('');setNotice('');try{const r=await fn();if(ok)setNotice(ok);return r;}catch(e){setError(e.message);}finally{setBusy(false);}}
  const s=summary?.status||{};
- const tabs=[['base','Base de contatos'],['campaigns','Campanhas e lotes'],...(user.role==='admin'?[['keys','Chaves de API']]:[])];
+ const tabs=[['base','Base de contatos'],['cdd','Casa dos Dados'],['campaigns','Campanhas e lotes'],...(user.role==='admin'?[['keys','Chaves de API']]:[])];
  return <section className="pr-page">
   <header className="pr-head"><div><h1>Prospecção ativa</h1><p className="muted">Contatos da Casa dos Dados e da API, campanhas por número dedicado e lotes com aprovação.</p></div></header>
   <div className="pr-kpis">{[['Na base',summary?.total],['Novos',s.new],['Em lote',s.reserved],['Aprovados',s.approved],['Já contatos',s.existing],['Descadastrados',s.optout]].map(([l,v])=><div key={l} className="pr-kpi"><span>{l}</span><strong>{fmt(v)}</strong></div>)}</div>
   <nav className="pr-tabs" role="tablist">{tabs.map(([id,l])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{l}</button>)}</nav>
   {error&&<p role="alert" className="banner error">{error}</p>}{notice&&<p role="status" className="banner success">{notice}</p>}
-  {tab==='base'?<Base user={user} summary={summary} filters={filters} setFilters={setFilters} reload={reload} busy={busy} run={run}/>:tab==='campaigns'?<Campaigns user={user} connections={connections} summary={summary} busy={busy} run={run} reload={reload}/>:<Keys busy={busy} run={run}/>}
+  {tab==='base'?<Base user={user} summary={summary} filters={filters} setFilters={setFilters} reload={reload} busy={busy} run={run}/>:tab==='cdd'?<CasaDosDados user={user} busy={busy} run={run} reload={reload}/>:tab==='campaigns'?<Campaigns user={user} connections={connections} summary={summary} busy={busy} run={run} reload={reload}/>:<Keys busy={busy} run={run}/>}
  </section>;
 }

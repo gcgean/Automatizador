@@ -63,3 +63,43 @@ test('prospecção: chave de API, importação, lotes com aprovação e permiss�
   await assert.rejects(service.summary({...seller,permissions:[]},{}),/não permite/);
  }finally{await store.pool.end();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
 });
+
+test('Casa dos Dados: filtros viram a pesquisa avançada e a resposta vira prospect',async()=>{
+ const {buildSearch,companyToProspect}=await import('../server/casa-dos-dados.js');
+ assert.throws(()=>buildSearch({}),/ao menos um filtro/);
+ const b=buildSearch({uf:'ce',cities:'Fortaleza, Juazeiro do Norte',cnae:'4712-1/00, xx',sizes:['01','99'],mei:'exclude',limit:5000,openedDays:'365'});
+ assert.deepEqual(b.uf,['ce']);assert.deepEqual(b.municipio,['fortaleza','juazeiro do norte']);assert.deepEqual(b.codigo_atividade_principal,['4712100']);
+ assert.deepEqual(b.porte_empresa,{codigos:['01']});assert.deepEqual(b.mei,{excluir_optante:true});assert.equal(b.limite,1000);assert.equal(b.mais_filtros.somente_celular,true);assert.equal(b.mais_filtros.excluir_empresas_visualizadas,true);assert.deepEqual(b.data_abertura,{ultimos_dias:365});
+ const p=companyToProspect({cnpj:'12345678000190',razao_social:'MERCADINHO X LTDA',nome_fantasia:'X',porte_empresa:{codigo:'01',descricao:'MICRO EMPRESA'},atividade_principal:{codigo:'4712100',descricao:'Comércio varejista'},endereco:{municipio:'FORTALEZA',uf:'CE',bairro:'Centro'},contato_telefonico:[{completo:'(85) 99876-5432',tipo:'celular'},{ddd:'85',numero:'32221111'}],contato_email:[{email:'a@x.com'}],quadro_societario:[{nome:'FULANO'}]});
+ assert.deepEqual(p.phones,['(85) 99876-5432','8532221111']);assert.equal(p.segment,'Comércio varejista');assert.equal(p.size,'MICRO EMPRESA');assert.equal(p.email,'a@x.com');assert.equal(p.profile.contato,'FULANO');
+});
+
+test('Casa dos Dados: chave conferida e protegida, busca importa para a base',{skip:!process.env.TEST_DATABASE_URL},async()=>{
+ const url=new URL(process.env.TEST_DATABASE_URL);assert.equal(url.hostname,'127.0.0.1');const db=new Pool({connectionString:url.toString()}),schema='prc_'+crypto.randomBytes(8).toString('hex');await db.query('CREATE SCHEMA '+schema);url.searchParams.set('options','-c search_path='+schema);const store=new PgStore(url.toString(),'.');
+ const GOOD='cdd_'+crypto.randomBytes(16).toString('hex');const calls=[];
+ const fetch=async(u,o)=>{calls.push({u,o});const ok=o.headers['api-key']===GOOD;const json=(status,b)=>({ok:status<300,status,text:async()=>JSON.stringify(b)});
+  if(!ok)return json(401,{mensagem:'api key inválida'});
+  if(u.endsWith('/v5/saldo'))return json(200,{saldo_total:900,saldos:{bonus:{valor:900,criado_em:'2026-01-01',expira_em:'2027-01-01'}}});
+  if(u.includes('/v5/cnpj/pesquisa'))return json(200,{total:3,cnpjs:[
+   {cnpj:'1',razao_social:'A LTDA',endereco:{municipio:'FORTALEZA',uf:'CE'},atividade_principal:{codigo:'4712100',descricao:'Varejo'},contato_telefonico:[{completo:'85999990001'}]},
+   {cnpj:'2',razao_social:'B LTDA',endereco:{municipio:'FORTALEZA',uf:'CE'},contato_telefonico:[{completo:'8532220000'}]}]});
+  return json(404,{});};
+ try{
+  await store.init();const service=new Prospecting(store,{connectionsKey:'a'.repeat(64)},{fetch});await service.init();
+  const admin={id:crypto.randomUUID(),role:'admin',company_id:'default',connections:['default']};
+  const seller={id:crypto.randomUUID(),role:'operator',company_id:'default',connections:['default'],permissions:['prospecting.view','prospecting.manage']};
+  for(const u of [admin,seller])await store.pool.query("INSERT INTO users(id,email,name,role,company_id) VALUES($1,$2,'QA',$3,'default')",[u.id,u.id+'@qa.test',u.role]);
+  assert.deepEqual(await service.cdd.status(seller),{configured:false});
+  await assert.rejects(service.cdd.search(seller,{uf:'CE'}),/Conecte a Casa dos Dados/);
+  await assert.rejects(service.cdd.saveKey(seller,{apiKey:GOOD}),/administradores/);
+  await assert.rejects(service.cdd.saveKey(admin,{apiKey:'cdd_'+'0'.repeat(32)}),/recusou a chave/);
+  const st=await service.cdd.saveKey(admin,{apiKey:GOOD});assert.equal(st.configured,true);assert.equal(st.balance,900);assert.equal(st.hint,'••••'+GOOD.slice(-4));
+  const raw=JSON.stringify((await store.pool.query('SELECT * FROM casa_dos_dados_settings')).rows);assert.ok(!raw.includes(GOOD),'chave cifrada no banco');assert.ok(!JSON.stringify(st).includes(GOOD));
+  const r=await service.cdd.search(seller,{uf:'CE',limit:2});
+  assert.equal(r.created,1);assert.equal(r.skipped.so_fixo,1);assert.equal(r.total,3);assert.equal(r.hasMore,true);assert.equal(r.balance,900);
+  const sent=calls.find(c=>c.u.includes('/pesquisa'));assert.match(sent.u,/tipo_resultado=completo/);assert.deepEqual(JSON.parse(sent.o.body).uf,['ce']);
+  const row=(await store.pool.query('SELECT phone,city,segment,source FROM prospects')).rows[0];assert.deepEqual(row,{phone:'5585999990001',city:'Fortaleza',segment:'Varejo',source:'casa-dos-dados-api'});
+  await assert.rejects(service.cdd.search({...seller,permissions:['prospecting.view']},{uf:'CE'}),/não permite/);
+  await service.cdd.removeKey(admin);assert.equal((await service.cdd.status(admin)).configured,false);
+ }finally{await store.pool.end();await db.query('DROP SCHEMA '+schema+' CASCADE');await db.end();}
+});

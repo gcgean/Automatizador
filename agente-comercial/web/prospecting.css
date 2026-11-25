@@ -55,3 +55,5 @@ html[data-theme=dark] .pr-page{--pr:#5aa2ff;--pr-soft:#16283d;--pr-ok:#5fd48a;--
 .pr-page button.danger{color:#b91c1c}html[data-theme=dark] .pr-page button.danger{color:#f87171}
 @media(max-width:900px){.pr-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.pr-grid3{grid-template-columns:1fr}}
 @media(max-width:560px){.pr-page{margin:6px auto 24px}.pr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.pr-field,.pr-field.small,.pr-field.grow{flex:1 1 100%}.pr-card{padding:14px}}
+.pr-help{flex-basis:100%;margin:0;font-size:12px}.pr-help a{display:inline-flex;align-items:center;gap:3px}
+.pr-check{display:flex;gap:6px;align-items:center;font-size:13px;flex-basis:100%}

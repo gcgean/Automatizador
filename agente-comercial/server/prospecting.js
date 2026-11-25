@@ -2,6 +2,7 @@
 // campanhas e lotes com aprovação. O envio dos lotes aprovados entra na fase 2.
 import crypto from 'node:crypto';
 import {can} from '../shared/access.js';
+import {CasaDosDados} from './casa-dos-dados.js';
 
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const uuid=s=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(s||''));
@@ -75,12 +76,13 @@ export function apiToProspect(p){
 }
 
 export class Prospecting{
- constructor(store,config={},{now=()=>new Date()}={}){this.store=store;this.config=config;this.now=now;this.rate=new Map();}
+ constructor(store,config={},{now=()=>new Date(),fetch}={}){this.store=store;this.config=config;this.now=now;this.rate=new Map();this.cdd=new CasaDosDados(this,{fetch});}
  get pool(){return this.store.pool;}
  async init(){
   await this.pool.query(`CREATE TABLE IF NOT EXISTS api_keys(id uuid PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),name text NOT NULL,prefix text NOT NULL,key_hash text NOT NULL UNIQUE,scopes text[] NOT NULL,created_by uuid,created_at timestamptz NOT NULL DEFAULT now(),last_used_at timestamptz,revoked_at timestamptz)`);
   await this.pool.query(`CREATE TABLE IF NOT EXISTS prospects(id uuid PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),phone text NOT NULL,cnpj text,company_name text,trade_name text,city text,uf text,segment text,cnae text,size text,email text,profile jsonb NOT NULL DEFAULT '{}',source text NOT NULL,consent text,status text NOT NULL DEFAULT 'new',status_reason text,campaign_id uuid,batch_id uuid,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(company_id,phone))`);
   await this.pool.query('CREATE INDEX IF NOT EXISTS prospects_filter ON prospects(company_id,status,uf,city)');
+  await this.cdd.init();
   await this.pool.query(`CREATE TABLE IF NOT EXISTS prospect_imports(id uuid PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),source text NOT NULL,file_name text,stats jsonb NOT NULL,created_by uuid,api_key_id uuid,created_at timestamptz NOT NULL DEFAULT now())`);
   await this.pool.query(`CREATE TABLE IF NOT EXISTS prospect_campaigns(id uuid PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),connection_id text NOT NULL REFERENCES whatsapp_connections(id),name text NOT NULL,template_name text NOT NULL,template_language text NOT NULL DEFAULT 'pt_BR',daily_limit int NOT NULL DEFAULT 50,status text NOT NULL DEFAULT 'active',created_by uuid,created_at timestamptz NOT NULL DEFAULT now())`);
   await this.pool.query(`CREATE TABLE IF NOT EXISTS prospect_batches(id uuid PRIMARY KEY,company_id text NOT NULL REFERENCES companies(id),campaign_id uuid NOT NULL REFERENCES prospect_campaigns(id),filter jsonb NOT NULL,size int NOT NULL,status text NOT NULL DEFAULT 'pending',created_by uuid,created_at timestamptz NOT NULL DEFAULT now(),decided_by uuid,decided_at timestamptz,note text)`);
@@ -258,6 +260,7 @@ export class Prospecting{
     if(path==='/prospecting/prospects')return send(res,200,await this.list(user,q));
     if(path==='/prospecting/campaigns')return send(res,200,await this.campaigns(user));
     if(path==='/prospecting/keys')return send(res,200,await this.listKeys(user));
+    if(path.startsWith('/prospecting/cdd')){const out=await this.cdd.handle(req,path,{},user);if(out!==undefined)return send(res,200,out);}
     const items=path.match(/^\/prospecting\/batches\/([a-f0-9-]{36})$/i);if(items)return send(res,200,await this.batchItems(user,items[1]));
     return send(res,404,'not found');
    }
@@ -265,6 +268,7 @@ export class Prospecting{
    const body=JSON.parse((await readBody(req,path==='/prospecting/import'?20*1024*1024:65536)).toString('utf8')||'{}');
    if(path==='/prospecting/import')return send(res,200,await this.importCsv(user,body));
    if(path==='/prospecting/keys')return send(res,200,await this.createKey(user,body));
+   if(path.startsWith('/prospecting/cdd/')){const out=await this.cdd.handle(req,path,body,user);if(out!==undefined)return send(res,200,out);}
    if(path==='/prospecting/keys/revoke')return send(res,200,await this.revokeKey(user,body.id));
    if(path==='/prospecting/campaigns')return send(res,200,await this.saveCampaign(user,body));
    if(path==='/prospecting/campaigns/status')return send(res,200,await this.setCampaignStatus(user,body.id,body.status));
